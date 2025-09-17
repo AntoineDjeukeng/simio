@@ -32,6 +32,8 @@ typedef struct {
 typedef struct {
     size_t n_workers; size_t queue_cap; size_t frame_pool;
     int    pin_threads;
+    /* if no traj: ft_job_run() streams this many synthetic frames */
+    size_t synthetic_frames; /* 0 => default 32 */
 } t_run_spec;
 
 #endif
