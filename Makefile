@@ -13,7 +13,11 @@ OBJ := $(patsubst src/%.c,build/obj/%.o,$(SRC))
 TEST_SRCS := $(shell find tests -maxdepth 1 -name '*.c')
 TEST_BINS := $(patsubst tests/%.c,bin/%,$(TEST_SRCS))
 
-all: $(LIB) $(TEST_BINS)
+# Examples become binaries bin/examples/<name>
+EX_SRCS := $(shell find examples -maxdepth 1 -name '*.c' 2>/dev/null)
+EX_BINS := $(patsubst examples/%.c,bin/examples/%,$(EX_SRCS))
+
+all: $(LIB) $(TEST_BINS) $(EX_BINS)
 
 $(LIB): $(OBJ)
 	@mkdir -p $(@D)
@@ -24,6 +28,10 @@ build/obj/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 bin/%: tests/%.c $(LIB)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $< $(LIB) -lpthread -lm -o $@
+
+bin/examples/%: examples/%.c $(LIB)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $< $(LIB) -lpthread -lm -o $@
 

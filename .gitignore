@@ -9,8 +9,8 @@
 *.exe
 
 # test / run outputs
-min_out.gro
-job_output.dat
+*.gro
+*.dat
 
 # OS/editor
 .DS_Store
