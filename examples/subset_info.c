@@ -135,8 +135,8 @@ int main(int argc, char **argv)
             int a=atoi(argv[i]+7); if(a<1||a>3){fprintf(stderr,"--axis 1|2|3\n");return 2;} axis_override=a-1;
         } else if (strncmp(argv[i],"--dump=",7)==0){
             dump_json = argv[i]+7;
-        } else if (strncmp(argv[i],"--dump-wall-ids=",17)==0){
-            dump_wall_ids = argv[i]+17;
+        } else if (strncmp(argv[i], "--dump-wall-ids=", 16) == 0) {
+            dump_wall_ids = argv[i] + 17;
         } else { fprintf(stderr,"unknown arg: %s\n", argv[i]); return 2; }
     }
 
@@ -231,13 +231,15 @@ int main(int argc, char **argv)
     if (dump_wall_ids){
         FILE *fp = fopen(dump_wall_ids, "w");
         if (fp){
-            for (size_t k=0;k<n_walls;k++) fprintf(fp, "%d\n", walls_idx[k]+1); /* 1-based */
+            for (size_t k=0; k<n_walls; ++k)
+                fprintf(fp, "%d\n", walls_idx[k] + 1); /* 1-based */
             fclose(fp);
-            printf("Wrote %s (%zu ids)\n", dump_wall_ids, n_walls);
+            printf("Wrote %s (%zu ids)\n", dump_wall_ids, n_walls);  // <-- use the variable
         } else {
             perror("open dump ids");
         }
     }
+
 
     /* cleanup */
     ft_session_close(S);
