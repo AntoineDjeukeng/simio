@@ -136,7 +136,7 @@ int main(int argc, char **argv)
         } else if (strncmp(argv[i],"--dump=",7)==0){
             dump_json = argv[i]+7;
         } else if (strncmp(argv[i], "--dump-wall-ids=", 16) == 0) {
-            dump_wall_ids = argv[i] + 17;
+            dump_wall_ids = argv[i] + 16;
         } else { fprintf(stderr,"unknown arg: %s\n", argv[i]); return 2; }
     }
 
