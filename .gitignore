@@ -1,0 +1,18 @@
+# build artifacts
+/build/
+/bin/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# test / run outputs
+*.gro
+*.dat
+
+# OS/editor
+.DS_Store
+*.swp
+*~
