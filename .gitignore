@@ -16,3 +16,13 @@
 .DS_Store
 *.swp
 *~
+# Local analysis outputs
+all_ids.txt
+wall_ids.txt
+channel.json
+
+# Large trajectory files (keep local or use Git LFS)
+*.trr
+*.xtc
+tests/data/*.trr
+tests/data/*.xtc
