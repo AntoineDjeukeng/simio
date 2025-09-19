@@ -2,9 +2,23 @@
 #define SIM_SESSION_H
 #include "spec.h"
 #include "../core/model.h"
+#include "io/trr.h"
+typedef struct {
+    trr_handle_t *trr;
+    int natoms;
+} t_traj_state;
 
-typedef struct s_session t_session;
+typedef struct s_session {
+    t_filespec files;
+    t_io_cfg   io;
+    t_path_policy policy;
+    t_traj_state traj;
+    t_system   sys;           /* holds full topology + initial coords */
+    char       subset_path[1024];
+}t_session;
 
+int session_open_trr(t_session *S, const char *traj_path);
+void session_close_trr(t_session *S);
 int  ft_session_open(t_session **S, const t_filespec *files,
                      const t_io_cfg *io, const t_subset_spec *subset);
 void ft_session_close(t_session *S);
