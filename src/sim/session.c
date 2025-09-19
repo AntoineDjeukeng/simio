@@ -7,14 +7,9 @@
 #include "../../include/utils/path.h"
 #include "../../include/ft_error.h"
 #include "../../include/core/mem.h"
+#include "io/trr.h"
 
-struct s_session {
-    t_filespec files;
-    t_io_cfg   io;
-    t_path_policy policy;
-    t_system   sys;           /* holds full topology + initial coords */
-    char       subset_path[1024];
-};
+
 
 static void set_default_policy(t_path_policy *p) {
     p->subset_suffix = "_xtc";
@@ -206,12 +201,29 @@ int  ft_session_open(t_session **S, const t_filespec *files,
     *S = s;
     return FT_OK;
 }
+int session_open_trr(t_session *S, const char *traj_path)
+{
+    if (!S || !traj_path) return -1;
+    trr_handle_t *h = NULL;
+    if (trr_open(traj_path, &h) != 0) return -2;
 
+    S->traj.trr = h;                       /* store handle */
+    S->traj.natoms = trr_natoms(h);        /* #atoms in the TRR */
+
+    /* optional: sanity vs subset */
+    // if (S->subset.natoms > 0 && S->subset.natoms != S->traj.natoms) {
+    //     /* you can warn or fail here depending on your policy */
+    //     /* fprintf(stderr,"TRR natoms %d != subset %zu\n", S->traj.natoms, S->subset.natoms); */
+    // }
+    return 0;
+}
 void ft_session_close(t_session *S) {
     if (!S) return;
+    session_close_trr(S);     /* <--- add this to avoid leaks */
     system_free(&S->sys);
     free(S);
 }
+
 
 const t_system* ft_session_system(const t_session *S) { return S ? &S->sys : NULL; }
 const char*     ft_session_full_gro(const t_session *S) { return (S && S->files.gro_full) ? S->files.gro_full : NULL; }
@@ -225,7 +237,10 @@ void ft_session_set_path_policy(t_session *S, const t_path_policy *p) {
                                    S->policy.preserve_ext, S->subset_path, sizeof(S->subset_path));
     }
 }
-
+void session_close_trr(t_session *S)
+{
+    if (S && S->traj.trr) { trr_close(S->traj.trr); S->traj.trr = NULL; }
+}
 int  ft_session_ensure_subset(t_session *S, const t_subset_spec *subset)
 {
     if (!S) return FT_EINVAL;

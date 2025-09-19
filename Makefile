@@ -9,13 +9,15 @@ LIB     := build/libsimio.a
 SRC := $(shell find src -name '*.c')
 OBJ := $(patsubst src/%.c,build/obj/%.o,$(SRC))
 
-# All tests become binaries bin/<name>
+# Tests -> bin/<name>
 TEST_SRCS := $(shell find tests -maxdepth 1 -name '*.c')
 TEST_BINS := $(patsubst tests/%.c,bin/%,$(TEST_SRCS))
 
-# Examples become binaries bin/examples/<name>
+# Examples -> bin/examples/<name>
 EX_SRCS := $(shell find examples -maxdepth 1 -name '*.c' 2>/dev/null)
 EX_BINS := $(patsubst examples/%.c,bin/examples/%,$(EX_SRCS))
+
+.PHONY: all clean tests examples
 
 all: $(LIB) $(TEST_BINS) $(EX_BINS)
 
@@ -34,6 +36,15 @@ bin/%: tests/%.c $(LIB)
 bin/examples/%: examples/%.c $(LIB)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $< $(LIB) -lpthread -lm -o $@
+
+# Convenience: build & run all tests
+tests: $(TEST_BINS)
+	@set -e; \
+	for t in $(TEST_BINS); do \
+	  echo $$t; $$t; \
+	done
+
+examples: $(EX_BINS)
 
 clean:
 	rm -rf build bin
