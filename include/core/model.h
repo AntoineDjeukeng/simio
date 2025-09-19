@@ -38,6 +38,7 @@ typedef struct {
     size_t n_angle_types; t_str32 *angle_type_name;
     size_t n_dihedral_types; t_str32 *dihedral_type_name;
     size_t n_improper_types; t_str32 *improper_type_name;
+    char *title;
     t_units units;
 } t_topology;
 
