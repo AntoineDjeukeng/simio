@@ -5,7 +5,10 @@
 *.a
 *.so
 *.dylib
+*.ipynb
+*.py
 *.dll
+*.csv
 *.exe
 
 # test / run outputs
