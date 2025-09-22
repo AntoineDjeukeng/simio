@@ -1,0 +1,17 @@
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/compute/density.c -o build/obj/compute/density.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/compute/msd.c -o build/obj/compute/msd.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/io/gro.c -o build/obj/io/gro.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/io/trr.c -o build/obj/io/trr.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/io/lammps_data.c -o build/obj/io/lammps_data.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/io/xtc.c -o build/obj/io/xtc.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/core/mem.c -o build/obj/core/mem.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/utils/math.c -o build/obj/utils/math.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/utils/pbc.c -o build/obj/utils/pbc.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/utils/path.c -o build/obj/utils/path.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/utils/units.c -o build/obj/utils/units.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/sim/job.c -o build/obj/sim/job.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/sim/session.c -o build/obj/sim/session.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/sched/pool.c -o build/obj/sched/pool.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude -c src/sched/queue.c -o build/obj/sched/queue.o
+ar rcs build/libsimio.a build/obj/compute/density.o build/obj/compute/msd.o build/obj/io/gro.o build/obj/io/trr.o build/obj/io/lammps_data.o build/obj/io/xtc.o build/obj/core/mem.o build/obj/utils/math.o build/obj/utils/pbc.o build/obj/utils/path.o build/obj/utils/units.o build/obj/sim/job.o build/obj/sim/session.o build/obj/sched/pool.o build/obj/sched/queue.o
+cc -std=c11 -O1 -g -fsanitize=address -fno-omit-frame-pointer -Iinclude examples/05_xprofile_trr.c build/libsimio.a -lpthread -lm -o bin/examples/05_xprofile_trr

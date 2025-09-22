@@ -68,19 +68,19 @@ static int name_in_set(const char *name, const char **set, int n_set)
 /* Try to resolve optional files from the full GRO stem.
    - subset GRO:  <stem>_xtc.gro
    - traj:        <stem>.trr, else <stem>.xtc
-   Writes into S->subset_path (buffer in t_session) and S->files.traj (heap dup). */
+   Writes into S->subset_path and (heap-duped) S->files.traj. */
 static void resolve_paths(t_session *S){
     if (!S || !S->files.gro_full) return;
 
     /* subset_path priority:
          1) explicit gro_dyn
          2) existing <full>_xtc.gro
-         3) else keep whatever was set by policy earlier (path_make_subset_gro) */
+         3) else keep policy-derived default */
     if (S->files.gro_dyn && S->files.gro_dyn[0]) {
         snprintf(S->subset_path, sizeof(S->subset_path), "%s", S->files.gro_dyn);
     } else {
-        char cand[1024]={0};
-        if (path_make_subset_gro(S->files.gro_full, "_xtc", 1, cand, sizeof(cand))==0
+        char cand[1024] = {0};
+        if (path_make_subset_gro(S->files.gro_full, "_xtc", 1, cand, sizeof(cand)) == 0
             && file_exists(cand)) {
             snprintf(S->subset_path, sizeof(S->subset_path), "%s", cand);
         }
@@ -89,16 +89,16 @@ static void resolve_paths(t_session *S){
     /* trajectory:
          if not provided, try stem.trr then stem.xtc */
     if (!(S->files.traj && S->files.traj[0])) {
-        char stem[1024]={0};
+        char stem[1024] = {0};
         strip_ext(S->files.gro_full, stem, sizeof(stem)); /* strip extension */
-        char cand[1024]={0};
+        char cand[1024] = {0};
 
-        snprintf(cand,sizeof(cand), "%s.trr", stem);
-        if (file_exists(cand)) {
+        int n = snprintf(cand, sizeof(cand), "%s.trr", stem);
+        if (n > 0 && (size_t)n < sizeof(cand) && file_exists(cand)) {
             S->files.traj = xstrdup(cand);
         } else {
-            snprintf(cand,sizeof(cand), "%s.xtc", stem);
-            if (file_exists(cand)) {
+            n = snprintf(cand, sizeof(cand), "%s.xtc", stem);
+            if (n > 0 && (size_t)n < sizeof(cand) && file_exists(cand)) {
                 S->files.traj = xstrdup(cand);
             }
         }
@@ -178,6 +178,8 @@ static int build_map_from_subset_gro(t_session *S, const char *path_dyn)
 }
 
 /* Common writer from is_wall mask (0=keep dyn, 1=wall) */
+/* Common writer from is_wall mask (0=keep dyn, 1=wall). We ALWAYS build the
+   mapping; writing the subset GRO is best-effort and failures are non-fatal. */
 static int build_subset_common_write(t_session *S, const int *is_wall)
 {
     const size_t n_full = S->sys.full.natoms;
@@ -194,38 +196,45 @@ static int build_subset_common_write(t_session *S, const int *is_wall)
         else full_to_dyn[i] = -1;
     }
 
+    /* install mapping first (this is what subset_info needs) */
     free(S->sys.map.full_to_dyn);
     free(S->sys.map.dyn_to_full);
     S->sys.map.full_to_dyn = full_to_dyn; S->sys.map.n_full = n_full;
     S->sys.map.dyn_to_full = dyn_to_full; S->sys.map.n_dyn  = n_dyn;
     S->sys.n_dyn = n_dyn;
 
-    /* build dynamic topology & frame and write subset GRO */
-    t_topology topo_dyn = (t_topology){0};
-    topo_dyn.natoms = n_dyn;
-    topo_dyn.atoms  = (t_atom*)calloc(n_dyn, sizeof(t_atom));
-    topo_dyn.units  = UNITS_GROMACS;
-    if (!topo_dyn.atoms) return FT_ENOMEM;
+    /* try to write subset GRO, but DO NOT fail the operation if writing fails */
+    int rc = FT_OK;
+    if (S->subset_path[0]) {
+        t_topology topo_dyn = (t_topology){0};
+        topo_dyn.natoms = n_dyn;
+        topo_dyn.atoms  = (t_atom*)calloc(n_dyn, sizeof(t_atom));
+        topo_dyn.units  = UNITS_GROMACS;
 
-    t_frame frame_dyn = (t_frame){0};
-    frame_dyn.natoms = n_dyn;
-    frame_dyn.x   = (double*)calloc(n_dyn*3, sizeof(double));
-    frame_dyn.box = S->sys.static_full.box;
-    if (!frame_dyn.x) { free(topo_dyn.atoms); return FT_ENOMEM; }
+        t_frame frame_dyn = (t_frame){0};
+        frame_dyn.natoms = n_dyn;
+        frame_dyn.x      = (double*)calloc(n_dyn*3, sizeof(double));
+        frame_dyn.box    = S->sys.static_full.box;
 
-    for (size_t jj=0; jj<n_dyn; jj++) {
-        size_t i_full = (size_t)dyn_to_full[jj];
-        topo_dyn.atoms[jj]    = S->sys.full.atoms[i_full];
-        frame_dyn.x[3*jj+0]   = S->sys.static_full.x[3*i_full+0];
-        frame_dyn.x[3*jj+1]   = S->sys.static_full.x[3*i_full+1];
-        frame_dyn.x[3*jj+2]   = S->sys.static_full.x[3*i_full+2];
+        if (topo_dyn.atoms && frame_dyn.x) {
+            for (size_t jj=0; jj<n_dyn; jj++) {
+                size_t i_full = (size_t)dyn_to_full[jj];
+                topo_dyn.atoms[jj]  = S->sys.full.atoms[i_full];
+                frame_dyn.x[3*jj+0] = S->sys.static_full.x[3*i_full+0];
+                frame_dyn.x[3*jj+1] = S->sys.static_full.x[3*i_full+1];
+                frame_dyn.x[3*jj+2] = S->sys.static_full.x[3*i_full+2];
+            }
+            int wrc = gro_write(S->subset_path, &topo_dyn, &frame_dyn,
+                                /*with_vel*/0, S->io.wrap_pbc, S->io.keep_ids);
+            if (wrc != FT_OK) {
+                fprintf(stderr, "[warn] gro_write('%s') failed (%d); keeping in-memory subset only.\n",
+                        S->subset_path, wrc);
+                /* do NOT turn this into an error; mapping is valid */
+            }
+        }
+        free(topo_dyn.atoms);
+        free(frame_dyn.x);
     }
-
-    int rc = gro_write(S->subset_path, &topo_dyn, &frame_dyn,
-                       /*with_vel*/0, S->io.wrap_pbc, S->io.keep_ids);
-
-    free(topo_dyn.atoms);
-    free(frame_dyn.x);
     return rc;
 }
 
@@ -360,24 +369,27 @@ void ft_session_set_path_policy(t_session *S, const t_path_policy *p) {
     }
 }
 
-/* Build subset given a spec, unless a subset GRO was already provided. */
-int  ft_session_ensure_subset(t_session *S, const t_subset_spec *subset)
+int ft_session_ensure_subset(t_session *S, const t_subset_spec *subset)
 {
     if (!S) return FT_EINVAL;
 
-    /* If a subset GRO is provided, just read it and build mapping. */
-    if (S->files.gro_dyn && S->files.gro_dyn[0]) {
-        return build_map_from_subset_gro(S, S->files.gro_dyn);
-    }
+    /* 1) If caller provided a subset spec, honor it FIRST. */
+    if (subset) {
+        /* Be robust: if lists are present, treat as “by resname” even if mode is 0/unknown */
+        const int have_lists =
+            ((subset->include_resnames && subset->n_incl > 0) ||
+             (subset->exclude_resnames && subset->n_excl > 0) ||
+             (subset->wall_resnames    && subset->n_resn > 0));
 
-    if (!subset) return FT_EINVAL;
-
-    switch (subset->mode) {
-        case SUBSET_BY_WALL_IDS: {
+        if (subset->mode == SUBSET_BY_RESNAME || have_lists) {
+            return build_subset_by_reslists(S, subset);
+        }
+        if (subset->mode == SUBSET_BY_WALL_IDS &&
+            subset->wall_ids && subset->n_wall > 0) {
             const size_t n_full = S->sys.full.natoms;
             int *is_wall = (int*)calloc(n_full, sizeof(int));
             if (!is_wall) return FT_ENOMEM;
-            for (int k=0; k<subset->n_wall; k++) {
+            for (int k = 0; k < subset->n_wall; k++) {
                 int idx = subset->wall_ids[k];
                 if (idx >= 0 && (size_t)idx < n_full) is_wall[idx] = 1;
             }
@@ -385,21 +397,47 @@ int  ft_session_ensure_subset(t_session *S, const t_subset_spec *subset)
             free(is_wall);
             return rc;
         }
-        case SUBSET_BY_RESNAME:
-            /* drop these resnames (treat as wall) */
-            return build_subset_by_reslists(S, subset);
-        case SUBSET_BY_MASK: {
-            if (!subset->mask_full) return FT_EINVAL;
+        if (subset->mode == SUBSET_BY_MASK && subset->mask_full) {
             const size_t n_full = S->sys.full.natoms;
             int *is_wall = (int*)calloc(n_full, sizeof(int));
             if (!is_wall) return FT_ENOMEM;
-            for (size_t i=0;i<n_full;i++) is_wall[i] = subset->mask_full[i] ? 0 : 1;
+            for (size_t i = 0; i < n_full; i++) is_wall[i] = subset->mask_full[i] ? 0 : 1;
             int rc = build_subset_common_write(S, is_wall);
             free(is_wall);
             return rc;
         }
-        default:
-            return FT_EINVAL;
+
+        /* Unknown/empty mode AND no lists/ids/mask -> treat as identity */
+        /* (fall through to step 3) */
+    }
+
+    /* 2) No spec given: try mapping from an existing subset GRO (explicit or auto). */
+    {
+        const char *subset_src = NULL;
+        if (S->files.gro_dyn && S->files.gro_dyn[0]) {
+            subset_src = S->files.gro_dyn;
+        } else if (S->subset_path[0] && file_exists(S->subset_path)) {
+            subset_src = S->subset_path; /* e.g., <full>_xtc.gro */
+        }
+        if (subset_src) {
+            int rc = build_map_from_subset_gro(S, subset_src);
+            if (rc == FT_OK) return FT_OK;
+            /* else keep going to identity */
+        }
+    }
+
+    /* 3) Identity mapping (everything is dynamic). */
+    {
+        const size_t n_full = S->sys.full.natoms;
+        int *full_to_dyn = (int*)malloc(sizeof(int)*n_full);
+        int *dyn_to_full = (int*)malloc(sizeof(int)*n_full);
+        if (!full_to_dyn || !dyn_to_full) { free(full_to_dyn); free(dyn_to_full); return FT_ENOMEM; }
+        for (size_t i = 0; i < n_full; ++i) { full_to_dyn[i] = (int)i; dyn_to_full[i] = (int)i; }
+        free(S->sys.map.full_to_dyn); free(S->sys.map.dyn_to_full);
+        S->sys.map.full_to_dyn = full_to_dyn; S->sys.map.n_full = n_full;
+        S->sys.map.dyn_to_full = dyn_to_full; S->sys.map.n_dyn  = n_full;
+        S->sys.n_dyn = n_full;
+        return FT_OK;
     }
 }
 

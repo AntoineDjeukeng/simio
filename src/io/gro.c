@@ -88,9 +88,8 @@ int gro_read(const char *path, t_topology *t, t_frame *f0)
         /* names */
         memset(A->atom_name.s, 0, sizeof(A->atom_name.s));
         memset(A->res_name.s,  0, sizeof(A->res_name.s));
-        snprintf(A->atom_name.s, sizeof(A->atom_name.s), "%s", atmn);
-        snprintf(A->res_name.s,  sizeof(A->res_name.s),  "%s", resn);
-
+        snprintf(A->atom_name.s, sizeof(A->atom_name.s), "%.8s", atmn);
+        snprintf(A->res_name.s,  sizeof(A->res_name.s),  "%.8s", resn);
         /* coords in nm already */
         f0->x[3*i+0] = x;
         f0->x[3*i+1] = y;

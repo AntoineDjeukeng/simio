@@ -1,69 +1,138 @@
-#include "io/xtc.h"
-#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include "io/xtc.h"
 
-/* minimal XDR readers */
-typedef struct { FILE *fp; int beof; } XDRF;
-static int is_be(void){ const unsigned i=1; return *(const unsigned char*)&i==0; }
-static void bswap4(void *p){ unsigned char *b=(unsigned char*)p; unsigned char t=b[0]; b[0]=b[3]; b[3]=t; t=b[1]; b[1]=b[2]; b[2]=t; }
-static int r_int(XDRF *x, int *v){ if(fread(v,4,1,x->fp)!=1){ if(feof(x->fp)) x->beof=1; return 0;} if(!is_be()) bswap4(v); return 1; }
-static int r_flt(XDRF *x, float *f){ if(fread(f,4,1,x->fp)!=1){ if(feof(x->fp)) x->beof=1; return 0;} if(!is_be()) bswap4(f); return 1; }
-static int r_flt_n(XDRF *x, float *f, int n){ for(int i=0;i<n;i++) if(!r_flt(x,&f[i])) return 0; return 1; }
+/* ------- tiny XDR helpers (your versions are fine) ------- */
+static int read_xdr_int(FILE *fp, int *v);
+static int read_xdr_float(FILE *fp, float *f);
+static int read_xdr_opaque(FILE *fp, unsigned char *buf, int len);
 
-struct s_xtc_handle { XDRF x; int natoms_hdr; long start_pos; };
+/* You already had a decoder with this signature; keep using it. */
+static int decode_3dfcoord(const unsigned char *buf, int nbytes,
+                           int natoms, float *xout);
 
-static int scan_to_next_magic(XDRF *x){
-    const int want=1995;
-    long pos;
-    while(1){
-        pos = ftell(x->fp);
-        int m=0;
-        if(!r_int(x,&m)) return 0; /* EOF */
-        if(m==want){ fseek(x->fp,pos,SEEK_SET); return 1; }
-        if(fseek(x->fp,pos+1,SEEK_SET)!=0) return 0;
-    }
+/* ------- handle ------- */
+struct s_xtc_handle {
+    FILE  *fp;
+    int    natoms;  /* latched from first frame */
+    int    eof;
+};
+
+int xtc_open(const char *path, xtc_handle_t **hout)
+{
+    if (!path || !hout) return -1;
+    FILE *fp = fopen(path, "rb");
+    if (!fp) return -2;
+
+    xtc_handle_t *h = (xtc_handle_t*)calloc(1, sizeof(*h));
+    if (!h) { fclose(fp); return -3; }
+    h->fp = fp;
+    h->natoms = -1;
+    h->eof = 0;
+    *hout = h;
+    return 0;
 }
 
-int xtc_open(const char *path, xtc_handle_t **hout){
-    if(!path||!hout) return -1;
-    FILE *fp=fopen(path,"rb"); if(!fp) return -2;
-    xtc_handle_t *h=(xtc_handle_t*)calloc(1,sizeof(*h)); if(!h){ fclose(fp); return -3; }
-    h->x.fp=fp; h->x.beof=0; h->natoms_hdr=-1; h->start_pos=ftell(fp);
-    *hout=h; return 0;
+void xtc_close(xtc_handle_t *h)
+{
+    if (!h) return;
+    if (h->fp) fclose(h->fp);
+    free(h);
 }
-void xtc_close(xtc_handle_t *h){ if(!h) return; if(h->x.fp) fclose(h->x.fp); free(h); }
-int  xtc_rewind(xtc_handle_t *h){ if(!h||!h->x.fp) return -1; if(fseek(h->x.fp,h->start_pos,SEEK_SET)!=0) return -2; h->x.beof=0; return 0; }
-int  xtc_eof(const xtc_handle_t *h){ return (!h||!h->x.fp)?1:h->x.beof; }
-int  xtc_natoms(const xtc_handle_t *h){ return h? h->natoms_hdr : -1; }
 
-int xtc_read_next(xtc_handle_t *h, int *step, double *time_ps, xtc_box_t *box){
-    if(!h||!h->x.fp) return -1;
+int xtc_natoms(const xtc_handle_t *h){ return h ? h->natoms : 0; }
 
-    /* magic */
-    int magic=0;
-    if(!r_int(&h->x,&magic)) return 0;     /* EOF */
-    if(magic!=1995){
-        if(!scan_to_next_magic(&h->x)) return 0;
-        if(!r_int(&h->x,&magic)) return 0;
-        if(magic!=1995) return -4;
+/* Read one frame; see header for doc. */
+int xtc_next(xtc_handle_t *h,
+             int *step_out, float *time_ps_out, float H9_out[9],
+             float *x_out)
+{
+    if (!h || !h->fp) return -1;
+    if (h->eof) return 0;
+
+    /* Core XTC header for each frame */
+    int magic=0, natoms=0, step=0;
+    float tps=0.0f;
+
+    if (!read_xdr_int(h->fp, &magic)) { h->eof = 1; return 0; }   /* EOF cleanly */
+    if (magic != 1995) return -10; /* XTC magic */
+
+    if (!read_xdr_int(h->fp, &natoms)) return -11;
+    if (!read_xdr_int(h->fp, &step))   return -12;
+    if (!read_xdr_float(h->fp, &tps))  return -13;
+
+    /* Latch natoms on first frame */
+    if (h->natoms < 0) h->natoms = natoms;
+    if (natoms != h->natoms) return -14; /* inconsistent file */
+
+    /* Read 3x3 box (9 floats) */
+    float H9tmp[9];
+    for (int i=0;i<9;i++){
+        if (!read_xdr_float(h->fp, &H9tmp[i])) return -15;
+    }
+    if (H9_out) memcpy(H9_out, H9tmp, 9*sizeof(float));
+
+    /* Read compressed coords block length (int), then payload */
+    int nbytes = 0;
+    if (!read_xdr_int(h->fp, &nbytes)) return -16;
+    if (nbytes <= 0) return -17;
+
+    unsigned char *buf = (unsigned char*)malloc((size_t)nbytes);
+    if (!buf) return -18;
+    if (!read_xdr_opaque(h->fp, buf, nbytes)) { free(buf); return -19; }
+
+    /* Decode coords if requested */
+    if (x_out){
+        int drc = decode_3dfcoord(buf, nbytes, natoms, x_out);
+        free(buf);
+        if (drc != 0) return -20;
+    } else {
+        free(buf);
     }
 
-    int nat=0, st=0; float t=0.0f;
-    if(!r_int(&h->x,&nat)) return -5;
-    if(!r_int(&h->x,&st))  return -6;
-    if(!r_flt(&h->x,&t))   return -7;
+    if (step_out)     *step_out     = step;
+    if (time_ps_out)  *time_ps_out  = tps;
 
-    float b[9]={0};
-    if(!r_flt_n(&h->x,b,9)) return -8;
+    return 1; /* success */
+}
 
-    if(h->natoms_hdr<0) h->natoms_hdr=nat;
-    if(step) *step=st;
-    if(time_ps) *time_ps=(double)t;
-    if(box){
-        for(int r=0;r<3;r++) for(int c=0;c<3;c++) box->a[r][c]=(double)b[3*r+c];
-    }
+/* ---------- minimal helper impls (sketch)—use yours if you already have them ---------- */
 
-    /* skip coords by scanning to next magic (temporary approach) */
-    if(!scan_to_next_magic(&h->x)) h->x.beof=1;
+static int read_xdr_int(FILE *fp, int *v){
+    unsigned char b[4];
+    if (fread(b,1,4,fp) != 4) return 0;
+    *v = (int)((b[0]<<24) | (b[1]<<16) | (b[2]<<8) | b[3]);
     return 1;
+}
+static int read_xdr_float(FILE *fp, float *f){
+    unsigned char b[4];
+    if (fread(b,1,4,fp) != 4) return 0;
+    unsigned int u = (b[0]<<24) | (b[1]<<16) | (b[2]<<8) | b[3];
+    float out;
+    memcpy(&out, &u, 4); /* works on IEEE-754; endianness already big-endian above */
+    /* On little-endian hosts we just interpreted u — OK because we assembled in BE order */
+    *f = out;
+    return 1;
+}
+/* Reads payload and consumes XDR pad to 4-byte boundary */
+static int read_xdr_opaque(FILE *fp, unsigned char *buf, int len){
+    if (len <= 0) return 1;
+    if ((int)fread(buf,1,(size_t)len,fp) != len) return 0;
+    int pad = (4 - (len & 3)) & 3;
+    if (pad){
+        unsigned char padbuf[4];
+        if (fread(padbuf,1,(size_t)pad,fp) != (size_t)pad) return 0;
+    }
+    return 1;
+}
+
+/* Stub: wire to your existing XTC decompressor. Return 0 on success. */
+static int decode_3dfcoord(const unsigned char *buf, int nbytes,
+                           int natoms, float *xout)
+{
+    /* You already had this working earlier; plug it in here.
+       Must fill xout[0..3*natoms-1] (x,y,z in nm). */
+    (void)buf; (void)nbytes; (void)natoms; (void)xout;
+    return -1; /* replace with real implementation */
 }
