@@ -1,0 +1,53 @@
+# Build artifacts
+build/
+bin/
+data/
+tests/
+app
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.d
+*.out
+*.exe
+
+# Coverage and caches
+coverage/
+.cache/
+*.gcda
+*.gcno
+*.gcov
+*.txt
+*.dat
+*.json
+*.csv
+*.ipynb
+*.gro
+*.trr
+*.xtc
+*.tpr
+gar/
+# Tooling outputs
+compile_commands.json
+tags
+
+# Editors/IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.#*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Python bytecode (if any helpers/scripts exist)
+__pycache__/
+*.pyc
