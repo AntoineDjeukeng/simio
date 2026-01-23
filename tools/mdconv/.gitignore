@@ -1,0 +1,6 @@
+/mdconv
+/mdconv_test
+/build/
+*.o
+*.a
+*.so
