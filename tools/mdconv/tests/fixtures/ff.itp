@@ -1,0 +1,17 @@
+[ defaults ]
+1 2 yes 0.5 0.8333
+
+[ atomtypes ]
+NA 22.98977 0.0 A 0.216 1.475
+CL 35.45300 0.0 A 0.483 0.054
+OW 15.99940 0.0 A 0.3166 0.65
+HW 1.00800 0.0 A 0.0 0.0
+
+[ bondtypes ]
+OW HW 1 1000 0.1
+
+[ angletypes ]
+HW OW HW 1 100 104.5
+
+[ dihedraltypes ]
+HW OW HW HW 3 0 1 2 3 4 5

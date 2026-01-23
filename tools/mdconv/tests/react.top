@@ -1,0 +1,36 @@
+#include "/home/forcefield/CDI.itp"
+ [ moleculetype ] 
+ CAR 3
+ ; Name            nrexcl 
+
+ 
+ [atoms] 
+ 
+   1   CW   1   CAR   CW   1   0.0   12.011
+   2   CW   1   CAR   CW   1   0.0   12.011
+   3   CW   1   CAR   CW   1   0.0   12.011
+   4   CW   1   CAR   CW   1   0.0   12.011
+ 
+ 
+ [ moleculetype ] 
+ CAG 3
+ ; Name            nrexcl 
+ 
+ [atoms] 
+ 
+   1   CA   1   CAG   CA   1   0.0   12.011
+   2   CA   1   CAG   CA   1   0.0   12.011
+   3   CA   1   CAG   CA   1   0.0   12.011
+   4   CA   1   CAG   CA   1   0.0   12.011
+ 
+ 
+ 
+[ system ]
+Graphene in water
+
+[ molecules ]
+CAR 192
+CAG 384
+SOL         2836
+Na               53
+Cl               53

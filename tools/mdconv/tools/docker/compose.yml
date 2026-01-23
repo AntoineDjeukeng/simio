@@ -1,0 +1,10 @@
+services:
+  mdconv-dev:
+    build:
+      context: .
+      dockerfile: tools/docker/Dockerfile
+    volumes:
+      - .:/work
+    working_dir: /work
+    tty: true
+    stdin_open: true

@@ -1,0 +1,41 @@
+.
+├── include
+│   ├── dump.hpp
+│   ├── errors.hpp
+│   ├── expander.hpp
+│   ├── gro.hpp
+│   ├── ir.hpp
+│   ├── parser.hpp
+│   ├── validator.hpp
+│   └── writer.hpp
+├── Makefile
+├── result.txt
+├── source.mk
+├── src
+│   ├── dump.cpp
+│   ├── expander.cpp
+│   ├── gro.cpp
+│   ├── main.cpp
+│   ├── parser.cpp
+│   ├── validator.cpp
+│   └── writer.cpp
+├── tests
+│   ├── fixtures
+│   │   ├── ff.itp
+│   │   ├── ions.itp
+│   │   ├── simple.gro
+│   │   ├── system.gro
+│   │   ├── system.top
+│   │   ├── topo_atoms_8field.txt
+│   │   ├── topo_dup_angletypes.txt
+│   │   ├── topo_dup_bondtypes_swapped.txt
+│   │   ├── topo_dup_dihedraltypes.txt
+│   │   ├── topo_valid.txt
+│   │   └── water.itp
+│   ├── react.gro
+│   ├── react.top
+│   └── test_main.cpp
+├── tree.txt
+└── zoom_amd64.deb
+
+5 directories, 34 files

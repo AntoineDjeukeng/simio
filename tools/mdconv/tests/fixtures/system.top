@@ -1,0 +1,11 @@
+#include "ff.itp"
+#include "ions.itp"
+#include "water.itp"
+
+[ system ]
+Test system
+
+[ molecules ]
+NA 1
+CL 1
+SOL 1

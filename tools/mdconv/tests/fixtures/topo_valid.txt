@@ -1,0 +1,22 @@
+[ defaults ]
+1 2 yes 0.5 0.8333
+[ atomtypes ]
+opls_135 12.011 0.0 A 0.355 0.276144
+opls_136 1.008 0.0 A 0.250 0.12552
+[ atoms ]
+1 opls_135 1 RES C1 1 -0.120
+2 opls_136 1 RES H1 1 0.060
+3 opls_135 1 RES C2 1 0.000
+4 opls_136 1 RES H2 1 0.060
+[ bondtypes ]
+opls_135 opls_136 1 1000 0.1
+[ bonds ]
+1 2 1
+[ angletypes ]
+opls_135 opls_136 opls_135 1 100 109.5
+[ angles ]
+1 2 3 1
+[ dihedraltypes ]
+opls_135 opls_136 opls_135 opls_136 3 0 1 2 3 4 5
+[ dihedrals ]
+1 2 3 4 3

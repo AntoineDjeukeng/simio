@@ -1,0 +1,11 @@
+[ moleculetype ]
+NA 1
+
+[ atoms ]
+1 NA 1 NA NA 1 1 22.98977
+
+[ moleculetype ]
+CL 1
+
+[ atoms ]
+1 CL 1 CL CL 1 -1 35.45300
