@@ -18,6 +18,7 @@ CPP_SRCS := \
 	src/analysis/intrinsics/x_grid_cache.cpp \
 	src/analysis/intrinsics/z_grid_cache.cpp \
 	src/analysis/intrinsics/channel_roi.cpp \
+	src/analysis/intrinsics/in_channel_mask.cpp \
   apps/xtc_all_properties/all_props/channel_count_xz.cpp \
   apps/xtc_all_properties/all_props/density_x.cpp \
   apps/xtc_all_properties/all_props/density_z_in_x_channel.cpp \
