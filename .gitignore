@@ -18,6 +18,8 @@ bin/
 
 # ---- runtime outputs ----
 analysis/
+!include/simio/analysis/
+!include/simio/analysis/**
 results/
 output/
 runs/

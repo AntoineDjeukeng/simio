@@ -51,3 +51,11 @@ build/%.o: %.c
 
 clean:
 	rm -rf build bin
+
+# ---- unit tests (minimal) ----
+bin/test_cache_store: tests/unit/test_cache_store.cpp
+	@mkdir -p bin
+	$(CXX) $(CXXFLAGS) -Iinclude -o $@ $<
+
+test_cache_store: bin/test_cache_store
+	./bin/test_cache_store
