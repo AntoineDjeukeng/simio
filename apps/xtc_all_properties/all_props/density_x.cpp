@@ -1,5 +1,8 @@
 #include "density_x.hpp"
 
+#include "simio/analysis/intrinsics/x_grid_cache.hpp"
+#include "simio/runtime/cache.hpp"
+
 #include <fstream>
 #include <iomanip>
 #include <stdexcept>
@@ -15,6 +18,11 @@ DensityXAnalyzer::DensityXAnalyzer(const DensityXConfig& cfg) : cfg_(cfg) {
     }
 }
 
+DensityXAnalyzer::DensityXAnalyzer(const DensityXConfig& cfg, simio::runtime::CacheStore& cache)
+    : DensityXAnalyzer(cfg) {
+    cache_ = &cache;
+}
+
 void DensityXAnalyzer::process_frame(const Topology& topo, const Frame& fr, const std::vector<MolState>& ms) {
     const double Lx = fr.pbc.L[0];
     const double Ly = fr.pbc.L[1];
@@ -23,7 +31,13 @@ void DensityXAnalyzer::process_frame(const Topology& topo, const Frame& fr, cons
         throw std::runtime_error("DensityXAnalyzer: invalid box lengths");
     }
 
-    const double dx = Lx / static_cast<double>(cfg_.nx);
+    double dx = Lx / static_cast<double>(cfg_.nx);
+    if (cache_ != nullptr) {
+        // Cache-backed x-grid intrinsic for bin widths/centers.
+        const auto grid =
+            simio::analysis::intrinsics::get_or_build_x_grid(*cache_, 0.0, Lx, cfg_.nx);
+        dx = grid.dx;
+    }
     const double zminw = fr.pbc.wrap_pos(2, cfg_.zmin);
     const double zmaxw = fr.pbc.wrap_pos(2, cfg_.zmax);
     const double zlen = interval_length_pbc(zminw, zmaxw, Lz);

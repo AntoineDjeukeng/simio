@@ -605,7 +605,7 @@ int main(int argc, char** argv) {
         density_cfg.zmin = cfg.zmin;
         density_cfg.zmax = cfg.zmax;
         density_cfg.nx = cfg.nx;
-        simio::analysis::DensityXAnalyzer density(density_cfg);
+        simio::analysis::DensityXAnalyzer density(density_cfg, cache);
         const int nz_eff = (cfg.nz > 0) ? cfg.nz : cfg.nx;
         simio::analysis::DensityZInXChannelConfig density_z_cfg;
         density_z_cfg.xmin = cfg.xmin;
