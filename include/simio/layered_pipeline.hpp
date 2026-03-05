@@ -13,8 +13,7 @@
 #include "simio/binning/FrameBinner.hpp"
 #include "simio/intrinsics/WaterDipole.hpp"
 #include "simio/regions/ChannelRegion.hpp"
-#include "simio.hpp"
-
+#include "simio/simio.hpp"
 namespace simio::layered {
 
 enum class Region : uint8_t { Channel = 0, Reservoir = 1, Outside = 2 };
