@@ -1,0 +1,44 @@
+#pragma once
+
+#include <array>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "common.hpp"
+
+namespace simio::analysis {
+
+struct ChannelCountXZConfig {
+    double xmin = 7.11;
+    double xmax = 12.89;
+    double zmin = 0.901;
+    double zmax = 1.801;
+};
+
+// ChannelCountXZAnalyzer writes per-frame molecule counts inside the ROI:
+// x in [xmin, xmax) and z in [zmin, zmax), with PBC-safe interval checks.
+class ChannelCountXZAnalyzer {
+  public:
+    explicit ChannelCountXZAnalyzer(const ChannelCountXZConfig& cfg = {});
+
+    void process_frame(const Topology& topo, const Frame& fr, const std::vector<MolState>& ms,
+                       int frame_idx);
+    void write_csv(const std::string& path) const;
+
+    int nframes() const { return nframes_; }
+
+  private:
+    struct FrameRow {
+        int frame_idx = 0;
+        int64_t step = 0;
+        double time_ps = 0.0;
+        std::array<int64_t, 3> count{0, 0, 0};  // water, na, cl
+    };
+
+    ChannelCountXZConfig cfg_{};
+    int nframes_ = 0;
+    std::vector<FrameRow> rows_{};
+};
+
+}  // namespace simio::analysis

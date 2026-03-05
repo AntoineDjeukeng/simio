@@ -1,0 +1,7 @@
+bin
+build
+analysis
+results
+*.xtc
+*.gro
+

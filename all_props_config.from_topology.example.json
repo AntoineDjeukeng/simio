@@ -1,0 +1,21 @@
+{
+  "xtc_path": "react_neu_9_6_20.xtc",
+  "max_frames": 60000,
+  "frame_begin": 0,
+  "frame_end": -1,
+  "threads": 8,
+  "grid_cell_nm": 0.5,
+  "topology_json": "setup_from_gro.json",
+  "use_channel_bounds_from_topology": true,
+  "water_names": "SOL,WAT,HOH",
+  "na_names": "NA,NA+,SOD",
+  "cl_names": "CL,CL-,CLA",
+  "nx": 500,
+  "r_cw": 0.35,
+  "r_aw": 0.38,
+  "r_oo": 0.35,
+  "gating_sel": "all",
+  "bound_layer_nm": 0.30,
+  "out_dir": "results",
+  "jump_keep_frames": 50
+}

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libreader_xtc.a CMakeFiles/reader_xtc.dir/reader/src/xtc.c.o CMakeFiles/reader_xtc.dir/reader/src/stub_trr.c.o
+/usr/bin/ranlib libreader_xtc.a
