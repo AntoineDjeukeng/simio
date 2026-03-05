@@ -1,5 +1,9 @@
 #include "jump_msd.hpp"
 
+#include "simio/analysis/intrinsics/channel_roi.hpp"
+#include "simio/analysis/intrinsics/context.hpp"
+#include "simio/runtime/cache.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -64,6 +68,11 @@ JumpMsdAnalyzer::JumpMsdAnalyzer(const JumpMsdConfig& cfg) : cfg_(cfg) {
     vacf_z_channel_raw_lag_ps_n_.assign(static_cast<size_t>(nlag), 0);
 }
 
+JumpMsdAnalyzer::JumpMsdAnalyzer(const JumpMsdConfig& cfg, simio::runtime::CacheStore& cache)
+    : JumpMsdAnalyzer(cfg) {
+    cache_ = &cache;
+}
+
 void JumpMsdAnalyzer::process_frame(const Topology& topo, const Frame& fr,
                                     const std::vector<MolState>& ms, int frame_idx) {
     if (nmol_ == 0) {
@@ -83,9 +92,19 @@ void JumpMsdAnalyzer::process_frame(const Topology& topo, const Frame& fr,
     const double Lz = fr.pbc.L[2];
     if (Lx <= 0.0 || Lz <= 0.0) throw std::runtime_error("JumpMsdAnalyzer: invalid box lengths");
 
-    const double xminw = fr.pbc.wrap_pos(0, cfg_.x_channel_min);
-    const double xmaxw = fr.pbc.wrap_pos(0, cfg_.x_channel_max);
-    const double xlen = interval_length_pbc(xminw, xmaxw, Lx);
+    if (!has_roi_) {
+        if (!cache_) {
+            static thread_local simio::runtime::CacheStore fallback_cache;
+            cache_ = &fallback_cache;
+        }
+        simio::analysis::intrinsics::IntrinsicContext ictx{*cache_};
+        roi_ = simio::analysis::intrinsics::get_channel_roi_x(
+            ictx, cfg_.x_channel_min, cfg_.x_channel_max, Lx);
+        xlen_ = roi_.xlen;
+        has_roi_ = true;
+    }
+
+    const double xlen = xlen_;
     const bool whole_x_channel = (xlen <= 0.0);
 
     const double zminw = fr.pbc.wrap_pos(2, cfg_.zmin);
@@ -136,9 +155,9 @@ void JumpMsdAnalyzer::process_frame(const Topology& topo, const Frame& fr,
             fr.pbc.wrap_pos3(keyw);
             const IntervalMap z_map = map_on_pbc_interval(keyw.v[2], zminw, zmaxw, Lz);
             is_in_slab = z_map.inside;
-            const bool x_ok = whole_x_channel
-                                  ? true
-                                  : map_on_pbc_interval(keyw.v[0], xminw, xmaxw, Lx).inside;
+            const double x_u = roi_.map_x_to_channel(keyw.v[0]);
+            const bool x_ok =
+                whole_x_channel ? true : (roi_.contains_x(keyw.v[0]) && x_u >= 0.0 && x_u < xlen);
             is_in_channel = x_ok && is_in_slab;
             if (is_in_channel) {
                 if (bound_delta_eff > 0.0) {

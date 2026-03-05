@@ -7,6 +7,11 @@
 #include <vector>
 
 #include "common.hpp"
+#include "simio/analysis/intrinsics/channel_roi.hpp"
+
+namespace simio::runtime {
+class CacheStore;
+}
 
 namespace simio::analysis {
 
@@ -25,6 +30,7 @@ struct JumpMsdConfig {
 class JumpMsdAnalyzer {
   public:
     explicit JumpMsdAnalyzer(const JumpMsdConfig& cfg = {});
+    JumpMsdAnalyzer(const JumpMsdConfig& cfg, simio::runtime::CacheStore& cache);
 
     void process_frame(const Topology& topo, const Frame& fr, const std::vector<MolState>& ms,
                        int frame_idx);
@@ -83,6 +89,10 @@ class JumpMsdAnalyzer {
     };
 
     JumpMsdConfig cfg_{};
+    simio::runtime::CacheStore* cache_ = nullptr;
+    simio::analysis::intrinsics::ChannelRoiX roi_{};
+    bool has_roi_ = false;
+    double xlen_ = 0.0;
     int nframes_ = 0;
     size_t nmol_ = 0;
     std::vector<int> species_idx_;
