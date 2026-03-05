@@ -2,6 +2,7 @@
 
 #include "simio/analysis/intrinsics/channel_roi.hpp"
 #include "simio/analysis/intrinsics/context.hpp"
+#include "simio/analysis/intrinsics/in_channel_mask.hpp"
 #include "simio/runtime/cache.hpp"
 
 #include <algorithm>
@@ -85,6 +86,8 @@ void GatingFluxAnalyzer::process_frame(const Topology& topo, const Frame& fr,
         prev_key_.assign(nmol, Vec3d{});
         has_prev_.assign(nmol, 0);
         prev_in_channel_.assign(nmol, 0);
+        xw_tmp_.assign(nmol, 0.0);
+        frame_counter_ = 0;
         rows_.clear();
         center_cum_ = PlaneTally{};
         seam_cum_ = PlaneTally{};
@@ -115,10 +118,28 @@ void GatingFluxAnalyzer::process_frame(const Topology& topo, const Frame& fr,
     const double x_center =
         whole_x ? 0.5 * Lx : wrapped_interval_midpoint(fr.pbc, 0, roi_.xmin_w, roi_.xmax_w, Lx);
 
-    auto in_channel_now = [&](const Vec3d& key) -> bool {
-        const double xw = std::fmod(key.v[0], Lx);
-        const double xw2 = (xw < 0.0) ? (xw + Lx) : xw;
-        const bool x_ok = whole_x ? true : roi_.contains_x(xw2);
+    if (xw_tmp_.size() != nmol) xw_tmp_.assign(nmol, 0.0);
+    for (size_t mid = 0; mid < nmol; ++mid) {
+        const MolCache& c = ms[mid].cache;
+        if (!(c.flags & MolCache::HAS_KEY)) {
+            xw_tmp_[mid] = 0.0;
+            continue;
+        }
+        Vec3d key_now = c.key_wrapped;
+        fr.pbc.wrap_pos3(key_now);
+        const double xw = std::fmod(key_now.v[0], Lx);
+        xw_tmp_[mid] = (xw < 0.0) ? (xw + Lx) : xw;
+    }
+    const std::int64_t frame_id = frame_counter_++;
+    simio::analysis::intrinsics::IntrinsicContext mask_ctx{*cache_};
+    const auto mask = simio::analysis::intrinsics::get_in_channel_mask_x(
+        mask_ctx, frame_id, xw_tmp_.data(), xw_tmp_.size(), cfg_.xmin, cfg_.xmax, Lx);
+    if (mask.in_channel.size() != nmol) {
+        throw std::runtime_error("GatingFluxAnalyzer: in_channel_mask size mismatch");
+    }
+
+    auto in_channel_now = [&](const Vec3d& key, size_t mid) -> bool {
+        const bool x_ok = whole_x ? true : (mask.in_channel[mid] != 0u);
         const bool z_ok = map_on_pbc_interval(key.v[2], zminw, zmaxw, Lz).inside;
         return x_ok && z_ok;
     };
@@ -155,7 +176,7 @@ void GatingFluxAnalyzer::process_frame(const Topology& topo, const Frame& fr,
         Vec3d key_now = c.key_wrapped;
         fr.pbc.wrap_pos3(key_now);
 
-        const bool in_now = in_channel_now(key_now);
+        const bool in_now = in_channel_now(key_now, mid);
         const bool in_prev = (prev_in_channel_[mid] != 0);
         const bool include = include_molecule(in_now, in_prev);
 
