@@ -5,6 +5,7 @@
 #include "simio/runtime/cache.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cctype>
 #include <fstream>
 #include <iomanip>
@@ -115,7 +116,9 @@ void GatingFluxAnalyzer::process_frame(const Topology& topo, const Frame& fr,
         whole_x ? 0.5 * Lx : wrapped_interval_midpoint(fr.pbc, 0, roi_.xmin_w, roi_.xmax_w, Lx);
 
     auto in_channel_now = [&](const Vec3d& key) -> bool {
-        const bool x_ok = whole_x ? true : roi_.contains_x(key.v[0]);
+        const double xw = std::fmod(key.v[0], Lx);
+        const double xw2 = (xw < 0.0) ? (xw + Lx) : xw;
+        const bool x_ok = whole_x ? true : roi_.contains_x(xw2);
         const bool z_ok = map_on_pbc_interval(key.v[2], zminw, zmaxw, Lz).inside;
         return x_ok && z_ok;
     };
