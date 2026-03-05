@@ -627,7 +627,7 @@ int main(int argc, char** argv) {
         dipole_cfg.zmin = cfg.zmin;
         dipole_cfg.zmax = cfg.zmax;
         dipole_cfg.nx = cfg.nx;
-        simio::analysis::DipoleXAnalyzer dipole(dipole_cfg);
+        simio::analysis::DipoleXAnalyzer dipole(dipole_cfg, cache);
 
         simio::analysis::CoordXConfig coord_cfg;
         // Force coordination/HB profiles on full x-length [0, Lx).

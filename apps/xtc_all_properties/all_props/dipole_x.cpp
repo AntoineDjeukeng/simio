@@ -1,5 +1,8 @@
 #include "dipole_x.hpp"
 
+#include "simio/analysis/intrinsics/x_grid_cache.hpp"
+#include "simio/runtime/cache.hpp"
+
 #include <fstream>
 #include <iomanip>
 #include <stdexcept>
@@ -14,6 +17,16 @@ DipoleXAnalyzer::DipoleXAnalyzer(const DipoleXConfig& cfg) : cfg_(cfg) {
     muz_fold_.init(cfg_.nx);
     mux_.init(cfg_.nx);
     cnt_.init(cfg_.nx);
+}
+
+DipoleXAnalyzer::DipoleXAnalyzer(const DipoleXConfig& cfg, simio::runtime::CacheStore& cache)
+    : DipoleXAnalyzer(cfg) {
+    cache_ = &cache;
+    // Build/get a relative x-grid once per run (unit interval [0,1]).
+    const auto grid = simio::analysis::intrinsics::get_or_build_x_grid(*cache_, 0.0, 1.0, cfg_.nx);
+    x_centers_rel_ = grid.centers_rel;
+    dx_ = grid.dx;
+    has_cached_rel_grid_ = true;
 }
 
 void DipoleXAnalyzer::process_frame(const Topology& topo, const Frame& fr,
@@ -36,17 +49,23 @@ void DipoleXAnalyzer::process_frame(const Topology& topo, const Frame& fr,
         throw std::runtime_error("DipoleXAnalyzer: invalid ROI length");
     }
 
-    const double dx = xlen / static_cast<double>(cfg_.nx);
-    if (dx <= 0.0) throw std::runtime_error("DipoleXAnalyzer: invalid x bin width");
-
     if (!has_x_centers_) {
+        if (has_cached_rel_grid_) {
+            dx_ *= xlen;
+        } else {
+            dx_ = xlen / static_cast<double>(cfg_.nx);
+        }
+        if (dx_ <= 0.0) throw std::runtime_error("DipoleXAnalyzer: invalid x bin width");
+
         has_x_centers_ = true;
         const double x0 = whole_x ? 0.0 : xminw;
         for (int i = 0; i < cfg_.nx; ++i) {
-            x_centers_[static_cast<size_t>(i)] =
-                fr.pbc.wrap_pos(0, x0 + (static_cast<double>(i) + 0.5) * dx);
+            const double xc_rel = has_cached_rel_grid_ ? (x_centers_rel_[static_cast<size_t>(i)] * xlen)
+                                                       : ((static_cast<double>(i) + 0.5) * dx_);
+            x_centers_[static_cast<size_t>(i)] = fr.pbc.wrap_pos(0, x0 + xc_rel);
         }
     }
+    const double dx = dx_;
 
     std::vector<double> frame_sum_muz_raw(static_cast<size_t>(cfg_.nx), 0.0);
     std::vector<double> frame_sum_muz_fold(static_cast<size_t>(cfg_.nx), 0.0);
