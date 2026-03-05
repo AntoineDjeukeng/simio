@@ -1,4 +1,5 @@
 #include "simio/analysis/intrinsics/x_grid_cache.hpp"
+#include "simio/analysis/intrinsics/context.hpp"
 #include "simio/runtime/cache.hpp"
 
 #include <cstdint>
@@ -26,9 +27,10 @@ static std::uint64_t hash_xgrid(double xmin, double xmax, int nx) {
   return h;
 }
 
-XGrid get_or_build_x_grid(simio::runtime::CacheStore& cache, double xmin, double xmax, int nx) {
+XGrid get_x_grid(IntrinsicContext& ctx, double xmin, double xmax, int nx) {
   using namespace simio::runtime;
 
+  auto& cache = ctx.cache;
   CacheKey k{"intrinsic.x_grid", CacheScope::Global, hash_xgrid(xmin, xmax, nx), -1};
 
   if (const Blob* b = cache.get(k)) {
@@ -84,6 +86,11 @@ XGrid get_or_build_x_grid(simio::runtime::CacheStore& cache, double xmin, double
   (void)cache.put_strict(k, std::move(out));
 
   return g;
+}
+
+XGrid get_or_build_x_grid(simio::runtime::CacheStore& cache, double xmin, double xmax, int nx) {
+  IntrinsicContext ctx{cache};
+  return get_x_grid(ctx, xmin, xmax, nx);
 }
 
 } // namespace simio::analysis::intrinsics
