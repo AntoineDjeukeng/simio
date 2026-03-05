@@ -14,6 +14,7 @@ endif
 
 CPP_SRCS := \
   apps/xtc_all_properties/main.cpp \
+	src/analysis/intrinsics/x_grid_cache.cpp \
   apps/xtc_all_properties/all_props/channel_count_xz.cpp \
   apps/xtc_all_properties/all_props/density_x.cpp \
   apps/xtc_all_properties/all_props/density_z_in_x_channel.cpp \

@@ -23,6 +23,7 @@
 #include "all_props/jump_msd.hpp"
 #include "simio/simio.hpp"
 #include "simio/runtime/cache.hpp"
+#include "simio/analysis/intrinsics/x_grid_cache.hpp"
 #include "xtc.h"
 
 namespace {
