@@ -59,3 +59,10 @@ bin/test_cache_store: tests/unit/test_cache_store.cpp
 
 test_cache_store: bin/test_cache_store
 	./bin/test_cache_store
+
+bin/test_cache_store_strict: tests/unit/test_cache_store_strict.cpp
+	@mkdir -p bin
+	$(CXX) $(CXXFLAGS) -Iinclude -o $@ $<
+
+test_cache_store_strict: bin/test_cache_store_strict
+	./bin/test_cache_store_strict

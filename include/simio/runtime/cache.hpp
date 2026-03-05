@@ -52,6 +52,7 @@ public:
     std::uint64_t gets{0};
     std::uint64_t hits{0};
     std::uint64_t puts{0};
+    std::uint64_t duplicate_puts{0};
   };
 
   const Blob* get(const CacheKey& key) {
@@ -65,6 +66,17 @@ public:
   void put(const CacheKey& key, Blob value) {
     ++stats_.puts;
     map_[key] = std::move(value);
+  }
+
+  // Strict put: returns false if key already exists (detect duplicate computation)
+  bool put_strict(const CacheKey& key, Blob value) {
+    ++stats_.puts;
+    auto [it, inserted] = map_.emplace(key, std::move(value));
+    if (!inserted) {
+      ++stats_.duplicate_puts;
+      return false;
+    }
+    return true;
   }
 
   void clear() { map_.clear(); stats_ = {}; }
