@@ -13,15 +13,15 @@ LDLIBS += -lstdc++fs
 endif
 
 CPP_SRCS := \
-  examples/xtc_all_properties.cpp \
-  examples/all_props/channel_count_xz.cpp \
-  examples/all_props/density_x.cpp \
-  examples/all_props/density_z_in_x_channel.cpp \
-  examples/all_props/dipole_x.cpp \
-  examples/all_props/dipole_z_in_x_channel.cpp \
-  examples/all_props/coord_x.cpp \
-  examples/all_props/gating_flux.cpp \
-  examples/all_props/jump_msd.cpp
+  apps/xtc_all_properties/main.cpp \
+  apps/xtc_all_properties/all_props/channel_count_xz.cpp \
+  apps/xtc_all_properties/all_props/density_x.cpp \
+  apps/xtc_all_properties/all_props/density_z_in_x_channel.cpp \
+  apps/xtc_all_properties/all_props/dipole_x.cpp \
+  apps/xtc_all_properties/all_props/dipole_z_in_x_channel.cpp \
+  apps/xtc_all_properties/all_props/coord_x.cpp \
+  apps/xtc_all_properties/all_props/gating_flux.cpp \
+  apps/xtc_all_properties/all_props/jump_msd.cpp
 
 C_SRCS := \
   reader/src/xtc.c \
