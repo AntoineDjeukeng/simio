@@ -23,6 +23,7 @@
 #include "all_props/jump_msd.hpp"
 #include "simio/simio.hpp"
 #include "simio/runtime/cache.hpp"
+#include "simio/runtime/run_config.hpp"
 #include "simio/analysis/intrinsics/x_grid_cache.hpp"
 #include "xtc.h"
 
@@ -522,33 +523,21 @@ CliConfig parse_cli(int argc, char** argv) {
     return parse_positional_cli(argc, argv);
 }
 
-simio::Topology build_topology(const CliConfig& cfg) {
+simio::Topology build_topology(const simio::runtime::RunConfig& cfg) {
     simio::Topology topo;
     int atom_cursor = 0;
 
-    if (cfg.has_mol_blocks && !cfg.mol_blocks.empty()) {
-        for (const auto& block : cfg.mol_blocks) {
-            const simio::MolType t = block.type;
-            const int n = block.nmol;
-            const int natoms = block.natoms_per_mol;
-            for (int i = 0; i < n; ++i) {
-                topo.mols.push_back(simio::MolSpan{atom_cursor, natoms, t});
-                atom_cursor += natoms;
-            }
-        }
-    } else {
-        for (int i = 0; i < cfg.nsol; ++i) {
-            topo.mols.push_back(simio::MolSpan{atom_cursor, 3, simio::MolType::Water});
-            atom_cursor += 3;
-        }
-        for (int i = 0; i < cfg.nna; ++i) {
-            topo.mols.push_back(simio::MolSpan{atom_cursor, 1, simio::MolType::Cation});
-            atom_cursor += 1;
-        }
-        for (int i = 0; i < cfg.ncl; ++i) {
-            topo.mols.push_back(simio::MolSpan{atom_cursor, 1, simio::MolType::Anion});
-            atom_cursor += 1;
-        }
+    for (int i = 0; i < cfg.nsol; ++i) {
+        topo.mols.push_back(simio::MolSpan{atom_cursor, 3, simio::MolType::Water});
+        atom_cursor += 3;
+    }
+    for (int i = 0; i < cfg.nna; ++i) {
+        topo.mols.push_back(simio::MolSpan{atom_cursor, 1, simio::MolType::Cation});
+        atom_cursor += 1;
+    }
+    for (int i = 0; i < cfg.ncl; ++i) {
+        topo.mols.push_back(simio::MolSpan{atom_cursor, 1, simio::MolType::Anion});
+        atom_cursor += 1;
     }
 
     topo.build_type_lists();
@@ -572,7 +561,8 @@ int main(int argc, char** argv) {
             return 1;
         }
 
-        const CliConfig cfg = parse_cli(argc, argv);
+        const simio::runtime::RunConfig cfg = simio::runtime::RunConfig::load(argc, argv);
+        cfg.validate_or_die();
         simio::Topology topo = build_topology(cfg);
         const int expected_nmols = static_cast<int>(topo.mols.size());
         int expected_natoms = 0;
@@ -654,7 +644,7 @@ int main(int argc, char** argv) {
         gating_cfg.xmax = 0.0;
         gating_cfg.zmin = cfg.zmin;
         gating_cfg.zmax = cfg.zmax;
-        gating_cfg.selection = cfg.gating_selection;
+        gating_cfg.selection = simio::analysis::parse_gating_selection(cfg.gating_selection);
         simio::analysis::GatingFluxAnalyzer gating(gating_cfg);
 
         simio::analysis::JumpMsdConfig jump_cfg;

@@ -14,6 +14,7 @@ endif
 
 CPP_SRCS := \
   apps/xtc_all_properties/main.cpp \
+	src/runtime/run_config.cpp \
 	src/analysis/intrinsics/x_grid_cache.cpp \
 	src/analysis/intrinsics/z_grid_cache.cpp \
   apps/xtc_all_properties/all_props/channel_count_xz.cpp \
