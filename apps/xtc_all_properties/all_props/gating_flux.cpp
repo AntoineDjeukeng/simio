@@ -1,5 +1,9 @@
 #include "gating_flux.hpp"
 
+#include "simio/analysis/intrinsics/channel_roi.hpp"
+#include "simio/analysis/intrinsics/context.hpp"
+#include "simio/runtime/cache.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -68,6 +72,11 @@ GatingSelection parse_gating_selection(const std::string& value) {
 
 GatingFluxAnalyzer::GatingFluxAnalyzer(const GatingFluxConfig& cfg) : cfg_(cfg) {}
 
+GatingFluxAnalyzer::GatingFluxAnalyzer(const GatingFluxConfig& cfg, simio::runtime::CacheStore& cache)
+    : GatingFluxAnalyzer(cfg) {
+    cache_ = &cache;
+}
+
 void GatingFluxAnalyzer::process_frame(const Topology& topo, const Frame& fr,
                                        const std::vector<MolState>& ms, int frame_idx) {
     const size_t nmol = topo.mols.size();
@@ -85,19 +94,28 @@ void GatingFluxAnalyzer::process_frame(const Topology& topo, const Frame& fr,
     const double Lz = fr.pbc.L[2];
     if (Lx <= 0.0 || Lz <= 0.0) throw std::runtime_error("GatingFluxAnalyzer: invalid box lengths");
 
-    const bool whole_x = (cfg_.xmax <= cfg_.xmin);
-    const double xminw = whole_x ? 0.0 : fr.pbc.wrap_pos(0, cfg_.xmin);
-    const double xmaxw = whole_x ? 0.0 : fr.pbc.wrap_pos(0, cfg_.xmax);
+    if (!has_roi_) {
+        if (!cache_) {
+            static thread_local simio::runtime::CacheStore fallback_cache;
+            cache_ = &fallback_cache;
+        }
+        simio::analysis::intrinsics::IntrinsicContext ictx{*cache_};
+        roi_ = simio::analysis::intrinsics::get_channel_roi_x(ictx, cfg_.xmin, cfg_.xmax, Lx);
+        xlen_ = roi_.xlen;
+        has_roi_ = true;
+    }
+
+    const bool whole_x = (xlen_ <= 0.0);
     const double zminw = fr.pbc.wrap_pos(2, cfg_.zmin);
     const double zmaxw = fr.pbc.wrap_pos(2, cfg_.zmax);
     const double zlen = interval_length_pbc(zminw, zmaxw, Lz);
     if (zlen <= 0.0) throw std::runtime_error("GatingFluxAnalyzer: invalid z interval");
 
     const double x_center =
-        whole_x ? 0.5 * Lx : wrapped_interval_midpoint(fr.pbc, 0, xminw, xmaxw, Lx);
+        whole_x ? 0.5 * Lx : wrapped_interval_midpoint(fr.pbc, 0, roi_.xmin_w, roi_.xmax_w, Lx);
 
     auto in_channel_now = [&](const Vec3d& key) -> bool {
-        const bool x_ok = whole_x ? true : map_on_pbc_interval(key.v[0], xminw, xmaxw, Lx).inside;
+        const bool x_ok = whole_x ? true : roi_.contains_x(key.v[0]);
         const bool z_ok = map_on_pbc_interval(key.v[2], zminw, zmaxw, Lz).inside;
         return x_ok && z_ok;
     };
