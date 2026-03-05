@@ -1,7 +1,47 @@
-bin
-build
-analysis
-results
-*.xtc
-*.gro
+# ---- build artifacts ----
+build/
+build-*/
+build_*/
+build.trash/
+build-trace/
+bin/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.gcda
+*.gcno
+*.gcov
 
+# ---- runtime outputs ----
+analysis/
+results/
+output/
+runs/
+*.csv
+*.tsv
+*.dat
+*.log
+*.png
+*.pdf
+
+# ---- editor / OS ----
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# ---- large simulation inputs ----
+*.xtc
+*.trr
+*.tng
+*.cpt
+*.edr
+*.log
+*.gro~
+*.pdb~
+*.tar.gz
