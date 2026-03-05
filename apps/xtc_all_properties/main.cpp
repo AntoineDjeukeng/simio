@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <cstdlib>
 #include <optional>
 #include <regex>
 #include <sstream>
@@ -21,9 +22,43 @@
 #include "all_props/gating_flux.hpp"
 #include "all_props/jump_msd.hpp"
 #include "simio/simio.hpp"
+#include "simio/runtime/cache.hpp"
 #include "xtc.h"
 
 namespace {
+
+// SIMIO_CACHE_WIRED: minimal cache integration (foundation)
+static bool simio_env_flag(const char* name) {
+    const char* v = std::getenv(name);
+    if (!v) return false;
+    return (v[0] == '1' || v[0] == 'y' || v[0] == 'Y' || v[0] == 't' || v[0] == 'T');
+}
+
+static void simio_cache_put_run_meta(simio::runtime::CacheStore& cache) {
+    using namespace simio::runtime;
+    CacheKey k{"run_meta", CacheScope::Global, 0, -1};
+    Blob b;
+    // Tiny marker payload; this just validates compute-once key wiring.
+    b.bytes = {0x52, 0x4d};  // "RM"
+    if (simio_env_flag("SIMIO_CACHE_STRICT")) {
+        if (!cache.put_strict(k, std::move(b))) {
+            std::cerr << "ERROR: duplicate CacheKey computed for run_meta (strict mode)\n";
+            std::exit(3);
+        }
+    } else {
+        cache.put(k, std::move(b));
+    }
+}
+
+static void simio_cache_maybe_print_stats(const simio::runtime::CacheStore& cache) {
+    if (!simio_env_flag("SIMIO_CACHE_STATS")) return;
+    const auto& s = cache.stats();
+    std::cerr << "[simio-cache] gets=" << s.gets
+              << " hits=" << s.hits
+              << " puts=" << s.puts
+              << " dup_puts=" << s.duplicate_puts
+              << "\n";
+}
 
 struct CliConfig {
     std::string xtc_path;
@@ -528,6 +563,9 @@ std::string join_out_path(const std::string& dir, const std::string& filename) {
 
 int main(int argc, char** argv) {
     try {
+        simio::runtime::CacheStore cache;
+        simio_cache_put_run_meta(cache);
+
         if (argc < 2) {
             print_usage(argv[0]);
             return 1;
@@ -760,6 +798,7 @@ int main(int argc, char** argv) {
                   << iz_vacf_channel_raw_plateau_nm2_per_ps[0]
                   << " na=" << iz_vacf_channel_raw_plateau_nm2_per_ps[1]
                   << " cl=" << iz_vacf_channel_raw_plateau_nm2_per_ps[2] << "\n";
+        simio_cache_maybe_print_stats(cache);
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
