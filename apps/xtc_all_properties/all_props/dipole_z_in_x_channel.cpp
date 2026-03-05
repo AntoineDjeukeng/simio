@@ -1,5 +1,8 @@
 #include "dipole_z_in_x_channel.hpp"
 
+#include "simio/analysis/intrinsics/z_grid_cache.hpp"
+#include "simio/runtime/cache.hpp"
+
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -17,6 +20,16 @@ DipoleZInXChannelAnalyzer::DipoleZInXChannelAnalyzer(const DipoleZInXChannelConf
     cnt_.init(cfg_.nz);
 }
 
+DipoleZInXChannelAnalyzer::DipoleZInXChannelAnalyzer(const DipoleZInXChannelConfig& cfg,
+                                                     simio::runtime::CacheStore& cache)
+    : DipoleZInXChannelAnalyzer(cfg) {
+    cache_ = &cache;
+    // Build/get a relative z-grid once per run (unit interval [0,1]).
+    const auto grid = simio::analysis::intrinsics::get_or_build_z_grid(*cache_, 0.0, 1.0, cfg_.nz);
+    dz_ = grid.dz;
+    has_cached_rel_grid_ = true;
+}
+
 void DipoleZInXChannelAnalyzer::process_frame(const Topology& topo,
                                               const Frame& fr,
                                               const std::vector<MolState>& ms) {
@@ -26,7 +39,13 @@ void DipoleZInXChannelAnalyzer::process_frame(const Topology& topo,
         throw std::runtime_error("DipoleZInXChannelAnalyzer: invalid box lengths");
     }
 
-    const double dz = Lz / static_cast<double>(cfg_.nz);
+    if (!has_ref_box_) {
+        has_ref_box_ = true;
+        Lz_ref_ = Lz;
+        dz_ = has_cached_rel_grid_ ? (dz_ * Lz_ref_) : (Lz_ref_ / static_cast<double>(cfg_.nz));
+    }
+
+    const double dz = dz_;
     const double xminw = fr.pbc.wrap_pos(0, cfg_.xmin);
     const double xmaxw = fr.pbc.wrap_pos(0, cfg_.xmax);
     const double xlen = interval_length_pbc(xminw, xmaxw, Lx);
@@ -91,11 +110,6 @@ void DipoleZInXChannelAnalyzer::process_frame(const Topology& topo,
         frame_count[static_cast<size_t>(iz)] += 1;
     }
 
-    if (!has_ref_box_) {
-        has_ref_box_ = true;
-        Lz_ref_ = Lz;
-    }
-
     for (int i = 0; i < cfg_.nz; ++i) {
         const int64_t c = frame_count[static_cast<size_t>(i)];
         const double mean_mux = (c > 0) ? (frame_sum_mux[static_cast<size_t>(i)] / static_cast<double>(c))
@@ -124,9 +138,8 @@ void DipoleZInXChannelAnalyzer::write_csv(const std::string& path) const {
     ofs << std::setprecision(12);
     ofs << "z_center_nm,mux_mean,mux_sem,mux_fold_mean,mux_fold_sem,muz_mean,muz_sem,count_mean,count_sem\n";
 
-    const double dz_ref = Lz_ref_ / static_cast<double>(cfg_.nz);
     for (int i = 0; i < cfg_.nz; ++i) {
-        const double z_center = (static_cast<double>(i) + 0.5) * dz_ref;
+        const double z_center = (static_cast<double>(i) + 0.5) * dz_;
         ofs << z_center << "," << mux_.mean(i, nframes_) << "," << mux_.sem(i, nframes_) << ","
             << mux_fold_.mean(i, nframes_) << "," << mux_fold_.sem(i, nframes_) << ","
             << muz_.mean(i, nframes_) << "," << muz_.sem(i, nframes_) << ","

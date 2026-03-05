@@ -1,5 +1,8 @@
 #include "density_z_in_x_channel.hpp"
 
+#include "simio/analysis/intrinsics/z_grid_cache.hpp"
+#include "simio/runtime/cache.hpp"
+
 #include <fstream>
 #include <iomanip>
 #include <stdexcept>
@@ -17,6 +20,16 @@ DensityZInXChannelAnalyzer::DensityZInXChannelAnalyzer(const DensityZInXChannelC
     rho_q_.init(cfg_.nz);
 }
 
+DensityZInXChannelAnalyzer::DensityZInXChannelAnalyzer(const DensityZInXChannelConfig& cfg,
+                                                       simio::runtime::CacheStore& cache)
+    : DensityZInXChannelAnalyzer(cfg) {
+    cache_ = &cache;
+    // Build/get a relative z-grid once per run (unit interval [0,1]).
+    const auto grid = simio::analysis::intrinsics::get_or_build_z_grid(*cache_, 0.0, 1.0, cfg_.nz);
+    dz_ = grid.dz;
+    has_cached_rel_grid_ = true;
+}
+
 void DensityZInXChannelAnalyzer::process_frame(const Topology& topo,
                                                const Frame& fr,
                                                const std::vector<MolState>& ms) {
@@ -27,7 +40,13 @@ void DensityZInXChannelAnalyzer::process_frame(const Topology& topo,
         throw std::runtime_error("DensityZInXChannelAnalyzer: invalid box lengths");
     }
 
-    const double dz = Lz / static_cast<double>(cfg_.nz);
+    if (!has_ref_box_) {
+        has_ref_box_ = true;
+        Lz_ref_ = Lz;
+        dz_ = has_cached_rel_grid_ ? (dz_ * Lz_ref_) : (Lz_ref_ / static_cast<double>(cfg_.nz));
+    }
+
+    const double dz = dz_;
     const double xminw = fr.pbc.wrap_pos(0, cfg_.xmin);
     const double xmaxw = fr.pbc.wrap_pos(0, cfg_.xmax);
     const double xlen = interval_length_pbc(xminw, xmaxw, Lx);
@@ -59,11 +78,6 @@ void DensityZInXChannelAnalyzer::process_frame(const Topology& topo,
         if (iz >= cfg_.nz) iz = cfg_.nz - 1;
 
         frame_counts[static_cast<size_t>(sid)][static_cast<size_t>(iz)] += 1;
-    }
-
-    if (!has_ref_box_) {
-        has_ref_box_ = true;
-        Lz_ref_ = Lz;
     }
 
     const double bin_volume = dz * Ly * xlen;
@@ -99,9 +113,8 @@ void DensityZInXChannelAnalyzer::write_csv(const std::string& path) const {
            "rho_q_e_mean,rho_q_e_sem,"
            "count_water_mean,count_water_sem,count_na_mean,count_na_sem,count_cl_mean,count_cl_sem\n";
 
-    const double dz_ref = Lz_ref_ / static_cast<double>(cfg_.nz);
     for (int i = 0; i < cfg_.nz; ++i) {
-        const double z_center = (static_cast<double>(i) + 0.5) * dz_ref;
+        const double z_center = (static_cast<double>(i) + 0.5) * dz_;
         ofs << z_center << ","
             << rho_[species_index(Species::Water)].mean(i, nframes_) << ","
             << rho_[species_index(Species::Water)].sem(i, nframes_) << ","

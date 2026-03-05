@@ -5,6 +5,10 @@
 
 #include "common.hpp"
 
+namespace simio::runtime {
+class CacheStore;
+}
+
 namespace simio::analysis {
 
 struct DensityZInXChannelConfig {
@@ -18,6 +22,7 @@ struct DensityZInXChannelConfig {
 class DensityZInXChannelAnalyzer {
   public:
     explicit DensityZInXChannelAnalyzer(const DensityZInXChannelConfig& cfg = {});
+    DensityZInXChannelAnalyzer(const DensityZInXChannelConfig& cfg, simio::runtime::CacheStore& cache);
 
     void process_frame(const Topology& topo, const Frame& fr, const std::vector<MolState>& ms);
     void write_csv(const std::string& path) const;
@@ -26,6 +31,9 @@ class DensityZInXChannelAnalyzer {
 
   private:
     DensityZInXChannelConfig cfg_{};
+    simio::runtime::CacheStore* cache_ = nullptr;
+    double dz_ = 0.0;
+    bool has_cached_rel_grid_ = false;
     int nframes_ = 0;
     double Lz_ref_ = 0.0;
     bool has_ref_box_ = false;

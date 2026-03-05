@@ -611,13 +611,13 @@ int main(int argc, char** argv) {
         density_z_cfg.xmin = cfg.xmin;
         density_z_cfg.xmax = cfg.xmax;
         density_z_cfg.nz = nz_eff;
-        simio::analysis::DensityZInXChannelAnalyzer density_z(density_z_cfg);
+        simio::analysis::DensityZInXChannelAnalyzer density_z(density_z_cfg, cache);
 
         simio::analysis::DipoleZInXChannelConfig dipole_z_cfg;
         dipole_z_cfg.xmin = cfg.xmin;
         dipole_z_cfg.xmax = cfg.xmax;
         dipole_z_cfg.nz = nz_eff;
-        simio::analysis::DipoleZInXChannelAnalyzer dipole_z(dipole_z_cfg);
+        simio::analysis::DipoleZInXChannelAnalyzer dipole_z(dipole_z_cfg, cache);
 
         simio::analysis::DipoleXConfig dipole_cfg;
         // Force dipole ux/uz_fold profile on full x-length [0, Lx).
