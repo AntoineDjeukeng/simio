@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/simio_smoke_test.dir/tests/smoke_test.cpp.o -o simio_smoke_test 
