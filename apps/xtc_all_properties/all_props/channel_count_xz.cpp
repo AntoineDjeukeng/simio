@@ -2,6 +2,7 @@
 
 #include "simio/analysis/intrinsics/channel_roi.hpp"
 #include "simio/analysis/intrinsics/context.hpp"
+#include "simio/analysis/intrinsics/in_channel_mask.hpp"
 #include "simio/runtime/cache.hpp"
 
 #include <fstream>
@@ -45,7 +46,34 @@ void ChannelCountXZAnalyzer::process_frame(const Topology& topo, const Frame& fr
     row.step = fr.step;
     row.time_ps = fr.time_ps;
 
-    for (size_t mid = 0; mid < topo.mols.size(); ++mid) {
+    const size_t nmol = topo.mols.size();
+    if (xw_tmp_.size() != nmol) xw_tmp_.assign(nmol, 0.0);
+    for (size_t mid = 0; mid < nmol; ++mid) {
+        const MolCache& c = ms[mid].cache;
+        if (!(c.flags & MolCache::HAS_KEY)) {
+            xw_tmp_[mid] = 0.0;
+            continue;
+        }
+        Vec3d key = c.key_wrapped;
+        fr.pbc.wrap_pos3(key);
+        xw_tmp_[mid] = key.v[0];
+    }
+
+    const std::int64_t frame_id = frame_counter_++;
+    simio::analysis::intrinsics::IntrinsicContext ictx{*cache_};
+    const auto mask = simio::analysis::intrinsics::get_in_channel_mask_x(
+        ictx,
+        frame_id,
+        xw_tmp_.data(),
+        xw_tmp_.size(),
+        cfg_.xmin,
+        cfg_.xmax,
+        Lx);
+    if (mask.in_channel.size() != nmol) {
+        throw std::runtime_error("ChannelCountXZAnalyzer: in_channel_mask size mismatch");
+    }
+
+    for (size_t mid = 0; mid < nmol; ++mid) {
         const int sid = species_index_from_type(topo.mols[mid].type);
         if (sid < 0 || sid >= 3) continue;
 
@@ -54,7 +82,7 @@ void ChannelCountXZAnalyzer::process_frame(const Topology& topo, const Frame& fr
 
         Vec3d key = c.key_wrapped;
         fr.pbc.wrap_pos3(key);
-        if (!roi_.contains_x(key.v[0])) continue;
+        if (mask.in_channel[mid] == 0u) continue;
         if (!in_range_pbc(key.v[2], zminw, zmaxw)) continue;
 
         row.count[static_cast<size_t>(sid)] += 1;
