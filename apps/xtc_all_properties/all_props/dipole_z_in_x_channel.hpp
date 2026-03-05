@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
+#include <vector>
 
 #include "common.hpp"
 #include "simio/analysis/intrinsics/channel_roi.hpp"
@@ -40,6 +42,8 @@ class DipoleZInXChannelAnalyzer {
     int nframes_ = 0;
     double Lz_ref_ = 0.0;
     bool has_ref_box_ = false;
+    std::vector<double> xw_tmp_{};
+    std::int64_t frame_counter_ = 0;
 
     RunningStatsAll mux_{};
     RunningStatsAll mux_fold_{};

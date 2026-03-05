@@ -2,6 +2,7 @@
 
 #include "simio/analysis/intrinsics/channel_roi.hpp"
 #include "simio/analysis/intrinsics/context.hpp"
+#include "simio/analysis/intrinsics/in_channel_mask.hpp"
 #include "simio/analysis/intrinsics/z_grid_cache.hpp"
 #include "simio/runtime/cache.hpp"
 
@@ -67,8 +68,35 @@ void DipoleZInXChannelAnalyzer::process_frame(const Topology& topo,
     std::vector<double> frame_sum_muz(static_cast<size_t>(cfg_.nz), 0.0);
     std::vector<int64_t> frame_count(static_cast<size_t>(cfg_.nz), 0);
 
+    const size_t nmol = topo.mols.size();
+    if (xw_tmp_.size() != nmol) xw_tmp_.assign(nmol, 0.0);
+    for (size_t mid = 0; mid < nmol; ++mid) {
+        const MolCache& c = ms[mid].cache;
+        if (!(c.flags & MolCache::HAS_KEY)) {
+            xw_tmp_[mid] = 0.0;
+            continue;
+        }
+        Vec3d key = c.key_wrapped;
+        fr.pbc.wrap_pos3(key);
+        xw_tmp_[mid] = key.v[0];
+    }
+
+    const std::int64_t frame_id = frame_counter_++;
+    simio::analysis::intrinsics::IntrinsicContext ictx{*cache_};
+    const auto mask = simio::analysis::intrinsics::get_in_channel_mask_x(
+        ictx,
+        frame_id,
+        xw_tmp_.data(),
+        xw_tmp_.size(),
+        cfg_.xmin,
+        cfg_.xmax,
+        Lx);
+    if (mask.in_channel.size() != nmol) {
+        throw std::runtime_error("DipoleZInXChannelAnalyzer: in_channel_mask size mismatch");
+    }
+
     constexpr double kNormEps = 1e-14;
-    for (size_t mid = 0; mid < topo.mols.size(); ++mid) {
+    for (size_t mid = 0; mid < nmol; ++mid) {
         const MolSpan& m = topo.mols[mid];
         if (m.type != MolType::Water || m.natoms < 3) continue;
 
@@ -81,7 +109,7 @@ void DipoleZInXChannelAnalyzer::process_frame(const Topology& topo,
         const double xw = key.v[0];
         const double zw = key.v[2];
         if (!std::isfinite(xw) || !std::isfinite(zw)) continue;
-        if (!roi_.contains_x(xw)) continue;
+        if (mask.in_channel[mid] == 0u) continue;
         const double xu = roi_.map_x_to_channel(xw);
 
         int iz = static_cast<int>(std::floor(zw / dz));
