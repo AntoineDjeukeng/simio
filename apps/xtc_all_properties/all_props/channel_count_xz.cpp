@@ -1,6 +1,5 @@
 #include "channel_count_xz.hpp"
 
-#include "simio/analysis/intrinsics/channel_roi.hpp"
 #include "simio/analysis/intrinsics/context.hpp"
 #include "simio/analysis/intrinsics/in_channel_mask.hpp"
 #include "simio/runtime/cache.hpp"
@@ -27,15 +26,9 @@ void ChannelCountXZAnalyzer::process_frame(const Topology& topo, const Frame& fr
         throw std::runtime_error("ChannelCountXZAnalyzer: invalid box lengths");
     }
 
-    if (!has_roi_) {
-        if (!cache_) {
-            static thread_local simio::runtime::CacheStore fallback_cache;
-            cache_ = &fallback_cache;
-        }
-        simio::analysis::intrinsics::IntrinsicContext ictx{*cache_};
-        roi_ = simio::analysis::intrinsics::get_channel_roi_x(ictx, cfg_.xmin, cfg_.xmax, Lx);
-        xlen_ = roi_.xlen;
-        has_roi_ = true;
+    if (!cache_) {
+        static thread_local simio::runtime::CacheStore fallback_cache;
+        cache_ = &fallback_cache;
     }
 
     const double zminw = fr.pbc.wrap_pos(2, cfg_.zmin);

@@ -1,6 +1,5 @@
 #include "gating_flux.hpp"
 
-#include "simio/analysis/intrinsics/channel_roi.hpp"
 #include "simio/analysis/intrinsics/context.hpp"
 #include "simio/analysis/intrinsics/in_channel_mask.hpp"
 #include "simio/runtime/cache.hpp"
@@ -98,25 +97,22 @@ void GatingFluxAnalyzer::process_frame(const Topology& topo, const Frame& fr,
     const double Lz = fr.pbc.L[2];
     if (Lx <= 0.0 || Lz <= 0.0) throw std::runtime_error("GatingFluxAnalyzer: invalid box lengths");
 
-    if (!has_roi_) {
-        if (!cache_) {
-            static thread_local simio::runtime::CacheStore fallback_cache;
-            cache_ = &fallback_cache;
-        }
-        simio::analysis::intrinsics::IntrinsicContext ictx{*cache_};
-        roi_ = simio::analysis::intrinsics::get_channel_roi_x(ictx, cfg_.xmin, cfg_.xmax, Lx);
-        xlen_ = roi_.xlen;
-        has_roi_ = true;
+    if (!cache_) {
+        static thread_local simio::runtime::CacheStore fallback_cache;
+        cache_ = &fallback_cache;
     }
 
-    const bool whole_x = (xlen_ <= 0.0);
+    const double xminw = fr.pbc.wrap_pos(0, cfg_.xmin);
+    const double xmaxw = fr.pbc.wrap_pos(0, cfg_.xmax);
+    const double xlen = interval_length_pbc(xminw, xmaxw, Lx);
+    const bool whole_x = (xlen <= 0.0);
     const double zminw = fr.pbc.wrap_pos(2, cfg_.zmin);
     const double zmaxw = fr.pbc.wrap_pos(2, cfg_.zmax);
     const double zlen = interval_length_pbc(zminw, zmaxw, Lz);
     if (zlen <= 0.0) throw std::runtime_error("GatingFluxAnalyzer: invalid z interval");
 
     const double x_center =
-        whole_x ? 0.5 * Lx : wrapped_interval_midpoint(fr.pbc, 0, roi_.xmin_w, roi_.xmax_w, Lx);
+        whole_x ? 0.5 * Lx : wrapped_interval_midpoint(fr.pbc, 0, xminw, xmaxw, Lx);
 
     if (xw_tmp_.size() != nmol) xw_tmp_.assign(nmol, 0.0);
     for (size_t mid = 0; mid < nmol; ++mid) {

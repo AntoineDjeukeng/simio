@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "common.hpp"
-#include "simio/analysis/intrinsics/channel_roi.hpp"
 
 namespace simio::runtime {
 class CacheStore;
@@ -63,9 +62,6 @@ class GatingFluxAnalyzer {
 
     GatingFluxConfig cfg_{};
     simio::runtime::CacheStore* cache_ = nullptr;
-    simio::analysis::intrinsics::ChannelRoiX roi_{};
-    bool has_roi_ = false;
-    double xlen_ = 0.0;
     std::vector<double> xw_tmp_{};
     std::int64_t frame_counter_ = 0;
     int nframes_ = 0;
