@@ -17,12 +17,12 @@ bin/
 *.gcov
 
 # ---- runtime outputs ----
-analysis/
+/analysis/
 !include/simio/analysis/
 !include/simio/analysis/**
-results/
-output/
-runs/
+/results/
+/output/
+/runs/
 *.csv
 *.tsv
 *.dat
