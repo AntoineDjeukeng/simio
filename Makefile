@@ -1,8 +1,8 @@
 CXX := g++
 CC  := gcc
 
-CXXFLAGS := -O2 -std=c++17 -Iinclude -Ireader/include -pthread
-CFLAGS   := -O2 -Ireader/include -pthread
+CXXFLAGS := -O2 -std=c++17 -Iinclude -Isrc/io/xtc_c/reader/include -pthread
+CFLAGS   := -O2 -Isrc/io/xtc_c/reader/include -pthread
 LDFLAGS  := -pthread
 LDLIBS   :=
 
@@ -24,8 +24,8 @@ CPP_SRCS := \
   apps/xtc_all_properties/all_props/jump_msd.cpp
 
 C_SRCS := \
-  reader/src/xtc.c \
-  reader/src/stub_trr.c
+  src/io/xtc_c/reader/src/xtc.c \
+  src/io/xtc_c/reader/src/stub_trr.c
 
 CPP_OBJS := $(addprefix build/,$(CPP_SRCS:.cpp=.o))
 C_OBJS   := $(addprefix build/,$(C_SRCS:.c=.o))
