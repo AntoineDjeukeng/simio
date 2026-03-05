@@ -2,6 +2,7 @@
 
 #include <array>
 #include <string>
+#include <vector>
 
 #include "common.hpp"
 
@@ -32,6 +33,9 @@ class DensityXAnalyzer {
   private:
     DensityXConfig cfg_{};
     simio::runtime::CacheStore* cache_ = nullptr;
+    double dx_ = 0.0;
+    std::vector<double> x_centers_rel_{};
+    bool has_cached_rel_grid_ = false;
     int nframes_ = 0;
     double Lx_ref_ = 0.0;
     bool has_ref_box_ = false;
