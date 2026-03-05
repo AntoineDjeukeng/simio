@@ -1,5 +1,7 @@
 #include "dipole_z_in_x_channel.hpp"
 
+#include "simio/analysis/intrinsics/channel_roi.hpp"
+#include "simio/analysis/intrinsics/context.hpp"
 #include "simio/analysis/intrinsics/z_grid_cache.hpp"
 #include "simio/runtime/cache.hpp"
 
@@ -44,11 +46,18 @@ void DipoleZInXChannelAnalyzer::process_frame(const Topology& topo,
         Lz_ref_ = Lz;
         dz_ = has_cached_rel_grid_ ? (dz_ * Lz_ref_) : (Lz_ref_ / static_cast<double>(cfg_.nz));
     }
+    if (!has_roi_) {
+        if (!cache_) {
+            throw std::runtime_error("DipoleZInXChannelAnalyzer: cache is not wired");
+        }
+        simio::analysis::intrinsics::IntrinsicContext ictx{*cache_};
+        roi_ = simio::analysis::intrinsics::get_channel_roi_x(ictx, cfg_.xmin, cfg_.xmax, Lx);
+        xlen_ = roi_.xlen;
+        has_roi_ = true;
+    }
 
     const double dz = dz_;
-    const double xminw = fr.pbc.wrap_pos(0, cfg_.xmin);
-    const double xmaxw = fr.pbc.wrap_pos(0, cfg_.xmax);
-    const double xlen = interval_length_pbc(xminw, xmaxw, Lx);
+    const double xlen = xlen_;
     if (dz <= 0.0 || xlen <= 0.0) {
         throw std::runtime_error("DipoleZInXChannelAnalyzer: invalid bin/channel dimensions");
     }
@@ -72,9 +81,8 @@ void DipoleZInXChannelAnalyzer::process_frame(const Topology& topo,
         const double xw = key.v[0];
         const double zw = key.v[2];
         if (!std::isfinite(xw) || !std::isfinite(zw)) continue;
-        if (!in_range_pbc(xw, xminw, xmaxw)) continue;
-        const IntervalMap xm = map_on_pbc_interval(xw, xminw, xmaxw, Lx);
-        if (!xm.inside) continue;
+        if (!roi_.contains_x(xw)) continue;
+        const double xu = roi_.map_x_to_channel(xw);
 
         int iz = static_cast<int>(std::floor(zw / dz));
         if (iz < 0) continue;
@@ -101,7 +109,7 @@ void DipoleZInXChannelAnalyzer::process_frame(const Topology& topo,
         if (mnorm <= kNormEps) continue;
         mu = mu / mnorm;
         const double mux_raw = mu.v[0];
-        const bool in_left_half = (xm.u < 0.5 * xlen);
+        const bool in_left_half = (xu < 0.5 * xlen);
         const double mux_fold = in_left_half ? -mux_raw : mux_raw;
 
         frame_sum_mux[static_cast<size_t>(iz)] += mux_raw;
