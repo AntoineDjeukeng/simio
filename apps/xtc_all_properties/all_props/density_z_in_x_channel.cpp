@@ -1,5 +1,7 @@
 #include "density_z_in_x_channel.hpp"
 
+#include "simio/analysis/intrinsics/channel_roi.hpp"
+#include "simio/analysis/intrinsics/context.hpp"
 #include "simio/analysis/intrinsics/z_grid_cache.hpp"
 #include "simio/runtime/cache.hpp"
 
@@ -45,11 +47,18 @@ void DensityZInXChannelAnalyzer::process_frame(const Topology& topo,
         Lz_ref_ = Lz;
         dz_ = has_cached_rel_grid_ ? (dz_ * Lz_ref_) : (Lz_ref_ / static_cast<double>(cfg_.nz));
     }
+    if (!has_roi_) {
+        if (!cache_) {
+            throw std::runtime_error("DensityZInXChannelAnalyzer: cache is not wired");
+        }
+        simio::analysis::intrinsics::IntrinsicContext ictx{*cache_};
+        roi_ = simio::analysis::intrinsics::get_channel_roi_x(ictx, cfg_.xmin, cfg_.xmax, Lx);
+        xlen_ = roi_.xlen;
+        has_roi_ = true;
+    }
 
     const double dz = dz_;
-    const double xminw = fr.pbc.wrap_pos(0, cfg_.xmin);
-    const double xmaxw = fr.pbc.wrap_pos(0, cfg_.xmax);
-    const double xlen = interval_length_pbc(xminw, xmaxw, Lx);
+    const double xlen = xlen_;
     if (dz <= 0.0 || xlen <= 0.0) {
         throw std::runtime_error("DensityZInXChannelAnalyzer: invalid bin/channel dimensions");
     }
@@ -71,7 +80,7 @@ void DensityZInXChannelAnalyzer::process_frame(const Topology& topo,
 
         const double xw = key.v[0];
         const double zw = key.v[2];
-        if (!in_range_pbc(xw, xminw, xmaxw)) continue;
+        if (!roi_.contains_x(xw)) continue;
 
         int iz = static_cast<int>(std::floor(zw / dz));
         if (iz < 0) continue;

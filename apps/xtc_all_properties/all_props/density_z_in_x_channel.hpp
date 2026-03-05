@@ -4,6 +4,7 @@
 #include <string>
 
 #include "common.hpp"
+#include "simio/analysis/intrinsics/channel_roi.hpp"
 
 namespace simio::runtime {
 class CacheStore;
@@ -32,6 +33,9 @@ class DensityZInXChannelAnalyzer {
   private:
     DensityZInXChannelConfig cfg_{};
     simio::runtime::CacheStore* cache_ = nullptr;
+    simio::analysis::intrinsics::ChannelRoiX roi_{};
+    bool has_roi_ = false;
+    double xlen_ = 0.0;
     double dz_ = 0.0;
     bool has_cached_rel_grid_ = false;
     int nframes_ = 0;
