@@ -1,5 +1,9 @@
 #include "channel_count_xz.hpp"
 
+#include "simio/analysis/intrinsics/channel_roi.hpp"
+#include "simio/analysis/intrinsics/context.hpp"
+#include "simio/runtime/cache.hpp"
+
 #include <fstream>
 #include <iomanip>
 #include <stdexcept>
@@ -7,6 +11,12 @@
 namespace simio::analysis {
 
 ChannelCountXZAnalyzer::ChannelCountXZAnalyzer(const ChannelCountXZConfig& cfg) : cfg_(cfg) {}
+
+ChannelCountXZAnalyzer::ChannelCountXZAnalyzer(const ChannelCountXZConfig& cfg,
+                                               simio::runtime::CacheStore& cache)
+    : ChannelCountXZAnalyzer(cfg) {
+    cache_ = &cache;
+}
 
 void ChannelCountXZAnalyzer::process_frame(const Topology& topo, const Frame& fr,
                                            const std::vector<MolState>& ms, int frame_idx) {
@@ -16,8 +26,17 @@ void ChannelCountXZAnalyzer::process_frame(const Topology& topo, const Frame& fr
         throw std::runtime_error("ChannelCountXZAnalyzer: invalid box lengths");
     }
 
-    const double xminw = fr.pbc.wrap_pos(0, cfg_.xmin);
-    const double xmaxw = fr.pbc.wrap_pos(0, cfg_.xmax);
+    if (!has_roi_) {
+        if (!cache_) {
+            static thread_local simio::runtime::CacheStore fallback_cache;
+            cache_ = &fallback_cache;
+        }
+        simio::analysis::intrinsics::IntrinsicContext ictx{*cache_};
+        roi_ = simio::analysis::intrinsics::get_channel_roi_x(ictx, cfg_.xmin, cfg_.xmax, Lx);
+        xlen_ = roi_.xlen;
+        has_roi_ = true;
+    }
+
     const double zminw = fr.pbc.wrap_pos(2, cfg_.zmin);
     const double zmaxw = fr.pbc.wrap_pos(2, cfg_.zmax);
 
@@ -35,7 +54,7 @@ void ChannelCountXZAnalyzer::process_frame(const Topology& topo, const Frame& fr
 
         Vec3d key = c.key_wrapped;
         fr.pbc.wrap_pos3(key);
-        if (!in_range_pbc(key.v[0], xminw, xmaxw)) continue;
+        if (!roi_.contains_x(key.v[0])) continue;
         if (!in_range_pbc(key.v[2], zminw, zmaxw)) continue;
 
         row.count[static_cast<size_t>(sid)] += 1;

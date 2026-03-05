@@ -6,6 +6,11 @@
 #include <vector>
 
 #include "common.hpp"
+#include "simio/analysis/intrinsics/channel_roi.hpp"
+
+namespace simio::runtime {
+class CacheStore;
+}
 
 namespace simio::analysis {
 
@@ -21,6 +26,7 @@ struct ChannelCountXZConfig {
 class ChannelCountXZAnalyzer {
   public:
     explicit ChannelCountXZAnalyzer(const ChannelCountXZConfig& cfg = {});
+    ChannelCountXZAnalyzer(const ChannelCountXZConfig& cfg, simio::runtime::CacheStore& cache);
 
     void process_frame(const Topology& topo, const Frame& fr, const std::vector<MolState>& ms,
                        int frame_idx);
@@ -37,6 +43,10 @@ class ChannelCountXZAnalyzer {
     };
 
     ChannelCountXZConfig cfg_{};
+    simio::runtime::CacheStore* cache_ = nullptr;
+    simio::analysis::intrinsics::ChannelRoiX roi_{};
+    bool has_roi_ = false;
+    double xlen_ = 0.0;
     int nframes_ = 0;
     std::vector<FrameRow> rows_{};
 };
