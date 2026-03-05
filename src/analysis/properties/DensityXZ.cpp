@@ -1,4 +1,7 @@
 #include "simio/properties/DensityXZ.hpp"
+#include "simio/analysis/intrinsics/context.hpp"
+#include "simio/analysis/intrinsics/z_grid_cache.hpp"
+#include "simio/runtime/cache.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -60,6 +63,11 @@ inline int type_bucket(MolType t) {
 
 DensityXZProperty::DensityXZProperty(const DensityXZConfig& cfg) : cfg_(cfg) {}
 
+DensityXZProperty::DensityXZProperty(const DensityXZConfig& cfg, simio::runtime::CacheStore& cache)
+    : DensityXZProperty(cfg) {
+    cache_ = &cache;
+}
+
 const char* DensityXZProperty::name() const { return "DensityXZProperty"; }
 
 uint64_t DensityXZProperty::requires() const {
@@ -96,7 +104,17 @@ void DensityXZProperty::compute_frame(const layered::FrameContext& ctx) {
     }
 
     out.dx = (out.nx > 0 && x_length > 0.0) ? (x_length / (double)out.nx) : 0.0;
-    out.dz = (out.nz > 0 && z_int.length > 0.0) ? (z_int.length / (double)out.nz) : 0.0;
+    if (out.nz > 0 && z_int.length > 0.0) {
+        // z-grid is relative to the z-window start; zz_int.u uses the same convention.
+        if (!cache_) {
+            throw std::runtime_error("DensityXZProperty: cache is not wired");
+        }
+        simio::analysis::intrinsics::IntrinsicContext ictx{*cache_};
+        const auto z_grid = simio::analysis::intrinsics::get_z_grid(ictx, 0.0, z_int.length, out.nz);
+        out.dz = z_grid.dz;
+    } else {
+        out.dz = 0.0;
+    }
     out.bin_volume = out.dx * Ly * out.dz;
 
     out.counts.assign((size_t)(out.nx * out.nz), 0);

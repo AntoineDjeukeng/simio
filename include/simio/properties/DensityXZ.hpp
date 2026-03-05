@@ -6,6 +6,10 @@
 #include "simio/layered_pipeline.hpp"
 #include "simio/properties/GatingTypes.hpp"
 
+namespace simio::runtime {
+class CacheStore;
+}
+
 namespace simio::properties {
 
 enum class DensityXMode : uint8_t {
@@ -49,6 +53,7 @@ struct DensityXZFrame {
 class DensityXZProperty final : public layered::PropertyKernel {
   public:
     explicit DensityXZProperty(const DensityXZConfig& cfg = {});
+    DensityXZProperty(const DensityXZConfig& cfg, simio::runtime::CacheStore& cache);
 
     const char* name() const override;
     uint64_t requires() const override;
@@ -59,6 +64,7 @@ class DensityXZProperty final : public layered::PropertyKernel {
 
   private:
     DensityXZConfig cfg_{};
+    simio::runtime::CacheStore* cache_{nullptr};
     std::vector<uint8_t> prev_in_channel_{};
     std::vector<DensityXZFrame> frames_{};
 };

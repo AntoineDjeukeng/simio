@@ -4,6 +4,7 @@
 
 #include "simio/layered_pipeline.hpp"
 #include "simio/properties/DensityXZ.hpp"
+#include "simio/runtime/cache.hpp"
 
 namespace {
 constexpr double kTol = 1e-12;
@@ -37,7 +38,8 @@ int main() {
     dcfg.nz = 2;
     dcfg.normalize_number_density = true;
 
-    auto density = std::make_unique<simio::properties::DensityXZProperty>(dcfg);
+    simio::runtime::CacheStore cache;
+    auto density = std::make_unique<simio::properties::DensityXZProperty>(dcfg, cache);
     simio::properties::DensityXZProperty* density_ptr = density.get();
     pipe.add_property(std::move(density));
 
@@ -72,4 +74,3 @@ int main() {
 
     return 0;
 }
-
