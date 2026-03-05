@@ -639,7 +639,7 @@ int main(int argc, char** argv) {
         coord_cfg.r_cw = cfg.r_cw;
         coord_cfg.r_aw = cfg.r_aw;
         coord_cfg.r_oo = cfg.r_oo;
-        simio::analysis::CoordXAnalyzer coord(coord_cfg);
+        simio::analysis::CoordXAnalyzer coord(coord_cfg, cache);
 
         simio::analysis::ChannelCountXZConfig channel_count_cfg;
         channel_count_cfg.xmin = cfg.xmin;

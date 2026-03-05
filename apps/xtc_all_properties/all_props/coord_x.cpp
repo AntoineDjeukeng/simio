@@ -1,5 +1,8 @@
 #include "coord_x.hpp"
 
+#include "simio/analysis/intrinsics/x_grid_cache.hpp"
+#include "simio/runtime/cache.hpp"
+
 #include <fstream>
 #include <iomanip>
 #include <limits>
@@ -16,6 +19,16 @@ CoordXAnalyzer::CoordXAnalyzer(const CoordXConfig& cfg) : cfg_(cfg) {
     for (int m = 0; m < MetricN; ++m) stats_[static_cast<size_t>(m)].init(cfg_.nx);
 }
 
+CoordXAnalyzer::CoordXAnalyzer(const CoordXConfig& cfg, simio::runtime::CacheStore& cache)
+    : CoordXAnalyzer(cfg) {
+    cache_ = &cache;
+    // Build/get a relative x-grid once per run (unit interval [0,1]).
+    const auto grid = simio::analysis::intrinsics::get_or_build_x_grid(*cache_, 0.0, 1.0, cfg_.nx);
+    x_centers_rel_ = grid.centers_rel;
+    dx_ = grid.dx;
+    has_cached_rel_grid_ = true;
+}
+
 void CoordXAnalyzer::process_frame(const Topology& topo, const Frame& fr,
                                    const std::vector<MolState>& ms) {
     const double Lx = fr.pbc.L[0];
@@ -29,15 +42,25 @@ void CoordXAnalyzer::process_frame(const Topology& topo, const Frame& fr,
     const double zmaxw = fr.pbc.wrap_pos(2, cfg_.zmax);
 
     const double xlen = whole_x ? Lx : interval_length_pbc(xminw, xmaxw, Lx);
-    const double dx = xlen / static_cast<double>(cfg_.nx);
-    if (xlen <= 0.0 || dx <= 0.0) throw std::runtime_error("CoordXAnalyzer: invalid x interval");
+    if (xlen <= 0.0) throw std::runtime_error("CoordXAnalyzer: invalid x interval");
+
+    if (!has_x_centers_) {
+        if (has_cached_rel_grid_) {
+            dx_ *= xlen;
+        } else {
+            dx_ = xlen / static_cast<double>(cfg_.nx);
+        }
+    }
+    const double dx = dx_;
+    if (dx <= 0.0) throw std::runtime_error("CoordXAnalyzer: invalid x interval");
 
     if (!has_x_centers_) {
         has_x_centers_ = true;
         const double x0 = whole_x ? 0.0 : xminw;
         for (int i = 0; i < cfg_.nx; ++i) {
-            x_centers_[static_cast<size_t>(i)] =
-                fr.pbc.wrap_pos(0, x0 + (static_cast<double>(i) + 0.5) * dx);
+            const double xc_rel = has_cached_rel_grid_ ? (x_centers_rel_[static_cast<size_t>(i)] * xlen)
+                                                       : ((static_cast<double>(i) + 0.5) * dx);
+            x_centers_[static_cast<size_t>(i)] = fr.pbc.wrap_pos(0, x0 + xc_rel);
         }
     }
 
