@@ -93,6 +93,8 @@ class JumpMsdAnalyzer {
     simio::analysis::intrinsics::ChannelRoiX roi_{};
     bool has_roi_ = false;
     double xlen_ = 0.0;
+    std::vector<double> xw_tmp_{};
+    std::int64_t frame_counter_ = 0;
     int nframes_ = 0;
     size_t nmol_ = 0;
     std::vector<int> species_idx_;

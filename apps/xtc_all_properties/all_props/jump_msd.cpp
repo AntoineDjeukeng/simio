@@ -2,6 +2,7 @@
 
 #include "simio/analysis/intrinsics/channel_roi.hpp"
 #include "simio/analysis/intrinsics/context.hpp"
+#include "simio/analysis/intrinsics/in_channel_mask.hpp"
 #include "simio/runtime/cache.hpp"
 
 #include <algorithm>
@@ -131,6 +132,32 @@ void JumpMsdAnalyzer::process_frame(const Topology& topo, const Frame& fr,
     cur.in_bound.assign(nmol_, 0);
     cur.in_core.assign(nmol_, 0);
 
+    if (xw_tmp_.size() != nmol_) xw_tmp_.assign(nmol_, 0.0);
+    for (size_t mid = 0; mid < nmol_; ++mid) {
+        const MolCache& c = ms[mid].cache;
+        if (!(c.flags & MolCache::HAS_KEY)) {
+            xw_tmp_[mid] = 0.0;
+            continue;
+        }
+        Vec3d keyw = c.key_wrapped;
+        fr.pbc.wrap_pos3(keyw);
+        xw_tmp_[mid] = keyw.v[0];
+    }
+
+    const std::int64_t frame_id = frame_counter_++;
+    simio::analysis::intrinsics::IntrinsicContext ictx{*cache_};
+    const auto mask = simio::analysis::intrinsics::get_in_channel_mask_x(
+        ictx,
+        frame_id,
+        xw_tmp_.data(),
+        xw_tmp_.size(),
+        cfg_.x_channel_min,
+        cfg_.x_channel_max,
+        Lx);
+    if (mask.in_channel.size() != nmol_) {
+        throw std::runtime_error("JumpMsdAnalyzer: in_channel_mask size mismatch");
+    }
+
     for (size_t mid = 0; mid < nmol_; ++mid) {
         const MolSpan& mol = topo.mols[mid];
         const MolState& st = ms[mid];
@@ -157,7 +184,8 @@ void JumpMsdAnalyzer::process_frame(const Topology& topo, const Frame& fr,
             is_in_slab = z_map.inside;
             const double x_u = roi_.map_x_to_channel(keyw.v[0]);
             const bool x_ok =
-                whole_x_channel ? true : (roi_.contains_x(keyw.v[0]) && x_u >= 0.0 && x_u < xlen);
+                whole_x_channel ? true
+                                : (mask.in_channel[mid] != 0u && x_u >= 0.0 && x_u < xlen);
             is_in_channel = x_ok && is_in_slab;
             if (is_in_channel) {
                 if (bound_delta_eff > 0.0) {
