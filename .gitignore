@@ -5,6 +5,10 @@ build_*/
 build.trash/
 build-trace/
 bin/
+/build/
+/build-*/
+/build-trace/
+/bin/
 *.o
 *.a
 *.so
@@ -18,17 +22,23 @@ bin/
 
 # ---- runtime outputs ----
 /analysis/
-!include/simio/analysis/
-!include/simio/analysis/**
 /results/
 /output/
 /runs/
+analysis/
+results/
+report/
 *.csv
 *.tsv
 *.dat
 *.log
 *.png
 *.pdf
+*.html
+
+# Keep source headers under include/simio/analysis visible.
+!include/simio/analysis/
+!include/simio/analysis/**
 
 # ---- editor / OS ----
 .DS_Store
@@ -37,13 +47,24 @@ bin/
 *.swp
 *~
 
+# ---- notebooks ----
+.ipynb_checkpoints/
+view.ipynb
+/simio_single_run_report.ipynb
+!notebooks/
+!notebooks/*.ipynb
+
 # ---- large simulation inputs ----
 *.xtc
 *.trr
 *.tng
 *.cpt
 *.edr
-*.log
 *.gro~
 *.pdb~
 *.tar.gz
+react_neu_9_6_*.xtc
+
+# ---- local configs/data ----
+topo_setup.json
+test_config.json

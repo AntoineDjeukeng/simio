@@ -1,0 +1,26 @@
+{
+  "xtc_path": "__XTC__",
+
+  "topology_json": "topo_setup.json",
+  "use_channel_bounds_from_topology": true,
+
+  "max_frames": 2,
+  "frame_begin": 2,
+  "frame_end": -1,
+
+  "threads": 4,
+  "grid_cell_nm": 0.5,
+
+  "nx": 500,
+  "nz": 300,
+
+  "r_cw": 0.35,
+  "r_aw": 0.38,
+  "r_oo": 0.35,
+
+  "gating_selection": "all",
+  "jump_keep_frames": 50,
+  "bound_layer_nm": 0.30,
+
+  "out_dir": "__OUTDIR__"
+}
