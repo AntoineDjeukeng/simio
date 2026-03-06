@@ -26,19 +26,11 @@ def _execute_with_nbconvert(
     from nbconvert import HTMLExporter  # type: ignore
     from nbconvert.preprocessors import ExecutePreprocessor  # type: ignore
 
-    repo_root = Path(__file__).resolve().parents[1]
     nb = nbformat.read(str(notebook_path), as_version=4)
 
-    old_env = os.environ.get("SIMIO_RUN_DIR")
-    os.environ["SIMIO_RUN_DIR"] = str(run_dir)
-    try:
-        ep = ExecutePreprocessor(timeout=timeout_s, kernel_name="python3")
-        ep.preprocess(nb, {"metadata": {"path": str(repo_root)}})
-    finally:
-        if old_env is None:
-            os.environ.pop("SIMIO_RUN_DIR", None)
-        else:
-            os.environ["SIMIO_RUN_DIR"] = old_env
+    # Notebook derives RUN_DIR from Path.cwd(); execute from run_dir.
+    ep = ExecutePreprocessor(timeout=timeout_s, kernel_name="python3")
+    ep.preprocess(nb, {"metadata": {"path": str(run_dir)}})
 
     with out_notebook_path.open("w", encoding="utf-8") as f:
         nbformat.write(nb, f)
@@ -57,8 +49,8 @@ def _fallback_execute_notebook(
     nb = json.loads(notebook_path.read_text(encoding="utf-8"))
     cells = nb.get("cells", [])
 
-    old_env = os.environ.get("SIMIO_RUN_DIR")
-    os.environ["SIMIO_RUN_DIR"] = str(run_dir)
+    old_cwd = Path.cwd()
+    os.chdir(run_dir)
 
     env = {"__name__": "__main__"}
 
@@ -125,10 +117,7 @@ def _fallback_execute_notebook(
             cell["outputs"] = outputs
             exec_count += 1
     finally:
-        if old_env is None:
-            os.environ.pop("SIMIO_RUN_DIR", None)
-        else:
-            os.environ["SIMIO_RUN_DIR"] = old_env
+        os.chdir(old_cwd)
 
     out_notebook_path.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     out_html_path.write_text(_fallback_html(nb, run_dir), encoding="utf-8")
