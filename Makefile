@@ -37,14 +37,20 @@ C_OBJS   := $(addprefix build/,$(C_SRCS:.c=.o))
 OBJS     := $(CPP_OBJS) $(C_OBJS)
 
 OUT := bin/simio_xtc_all_properties
+MINI_TOPO_SRC := apps/mini_gro_topology/main.cpp
+MINI_TOPO_BIN := bin/simio_mini_gro_topology
 
 .PHONY: all clean
 
-all: $(OUT)
+all: $(OUT) $(MINI_TOPO_BIN)
 
 $(OUT): $(OBJS)
 	@mkdir -p $(dir $@)
 	$(CXX) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
+
+$(MINI_TOPO_BIN): $(MINI_TOPO_SRC)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -o $@ $< $(LDLIBS)
 
 build/%.o: %.cpp
 	@mkdir -p $(dir $@)
