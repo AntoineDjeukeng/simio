@@ -1,5 +1,7 @@
 #pragma once
 
+#include "simio/simio.hpp"
+
 #include <string>
 #include <vector>
 
@@ -50,6 +52,16 @@ struct RunConfig {
   std::vector<std::string> water_names{"SOL", "WAT", "HOH"};
   std::vector<std::string> na_names{"NA", "NA+", "SOD"};
   std::vector<std::string> cl_names{"CL", "CL-", "CLA"};
+
+  // Optional ordered molecule blocks inferred from topology_json types[] order.
+  // This preserves atom offsets for unmapped species (e.g., walls).
+  struct MolBlock {
+    simio::MolType type{simio::MolType::Other};
+    int nmol{0};
+    int natoms_per_mol{0};
+  };
+  std::vector<MolBlock> mol_blocks;
+  bool has_mol_blocks{false};
 
   // Loaders
   static RunConfig load(int argc, char** argv);             // auto CLI vs JSON
