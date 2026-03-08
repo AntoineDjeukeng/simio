@@ -10,6 +10,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace simio::runtime {
@@ -180,6 +181,7 @@ struct MiniTopologyData {
   struct TypeEntry {
     std::string name;
     int molecules = 0;
+    int atoms_per_molecule = 0; // 0 when unavailable in JSON
   };
   std::array<double, 3> channel_min{0.0, 0.0, 0.0};
   std::array<double, 3> channel_max{0.0, 0.0, 0.0};
@@ -217,6 +219,9 @@ MiniTopologyData parse_mini_topology_json(const std::string& path) {
     MiniTopologyData::TypeEntry e;
     e.name = upper_copy(trim_copy(*name_v));
     e.molecules = parse_int_text(*mols_v, "types[].molecules");
+    if (auto apm_v = json_find_number_token(obj, "atoms_per_molecule")) {
+      e.atoms_per_molecule = parse_int_text(*apm_v, "types[].atoms_per_molecule");
+    }
     out.types.push_back(e);
   }
 
@@ -237,27 +242,70 @@ void apply_topology_counts_from_mini_json(RunConfig& c) {
   bool has_sol = false;
   bool has_na = false;
   bool has_cl = false;
+  std::vector<RunConfig::MolBlock> blocks;
 
   for (const auto& kv : topo.types) {
     const std::string& name = kv.name;
     const int count = kv.molecules;
+    std::optional<simio::MolType> mapped;
     if (water_set.count(name) > 0) {
       nsol += count;
       has_sol = true;
+      mapped = simio::MolType::Water;
     }
     if (na_set.count(name) > 0) {
       nna += count;
       has_na = true;
+      mapped = simio::MolType::Cation;
     }
     if (cl_set.count(name) > 0) {
       ncl += count;
       has_cl = true;
+      mapped = simio::MolType::Anion;
+    }
+
+    simio::MolType t = mapped.value_or(simio::MolType::Other);
+    int natoms_per_mol = kv.atoms_per_molecule;
+    if (t == simio::MolType::Water) {
+      if (natoms_per_mol == 0) natoms_per_mol = 3;
+      if (natoms_per_mol != 3) {
+        throw std::runtime_error("topology_json water molecule '" + name +
+                                 "' has atoms_per_molecule=" +
+                                 std::to_string(natoms_per_mol) +
+                                 ", but this driver requires 3 (OHH)");
+      }
+    } else if (t == simio::MolType::Cation || t == simio::MolType::Anion) {
+      if (natoms_per_mol == 0) natoms_per_mol = 1;
+      if (natoms_per_mol != 1) {
+        throw std::runtime_error("topology_json ion molecule '" + name +
+                                 "' has atoms_per_molecule=" +
+                                 std::to_string(natoms_per_mol) +
+                                 ", but this driver requires 1");
+      }
+    } else {
+      if (natoms_per_mol <= 0) {
+        throw std::runtime_error(
+            "topology_json has unmapped molecule '" + name +
+            "' without atoms_per_molecule; cannot preserve atom offset");
+      }
+    }
+
+    if (count <= 0) continue;
+    if (!blocks.empty() && blocks.back().type == t &&
+        blocks.back().natoms_per_mol == natoms_per_mol) {
+      blocks.back().nmol += count;
+    } else {
+      blocks.push_back(RunConfig::MolBlock{t, count, natoms_per_mol});
     }
   }
 
   if (has_sol) c.nsol = nsol;
   if (has_na) c.nna = nna;
   if (has_cl) c.ncl = ncl;
+  if (!blocks.empty()) {
+    c.mol_blocks = std::move(blocks);
+    c.has_mol_blocks = true;
+  }
 
   if (c.use_channel_bounds_from_topology) {
     if (!topo.has_channel) {
@@ -418,6 +466,15 @@ void RunConfig::validate_or_die() const {
   if (jump_keep_frames <= 0) die("jump_keep_frames must be > 0");
   if (bound_layer_nm < 0.0) die("bound_layer_nm must be >= 0");
   if (out_dir.empty()) die("out_dir must be non-empty");
+  if (has_mol_blocks) {
+    for (size_t i = 0; i < mol_blocks.size(); ++i) {
+      const auto& b = mol_blocks[i];
+      if (b.nmol < 0) die("mol_blocks[" + std::to_string(i) + "].nmol must be >= 0");
+      if (b.natoms_per_mol <= 0) {
+        die("mol_blocks[" + std::to_string(i) + "].natoms_per_mol must be > 0");
+      }
+    }
+  }
 }
 
 } // namespace simio::runtime

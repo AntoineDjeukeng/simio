@@ -68,3 +68,6 @@ react_neu_9_6_*.xtc
 # ---- local configs/data ----
 topo_setup.json
 test_config.json
+
+flow_post
+simio_single_run_report_sum.ipynb

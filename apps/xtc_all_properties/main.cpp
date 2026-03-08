@@ -527,17 +527,29 @@ simio::Topology build_topology(const simio::runtime::RunConfig& cfg) {
     simio::Topology topo;
     int atom_cursor = 0;
 
-    for (int i = 0; i < cfg.nsol; ++i) {
-        topo.mols.push_back(simio::MolSpan{atom_cursor, 3, simio::MolType::Water});
-        atom_cursor += 3;
-    }
-    for (int i = 0; i < cfg.nna; ++i) {
-        topo.mols.push_back(simio::MolSpan{atom_cursor, 1, simio::MolType::Cation});
-        atom_cursor += 1;
-    }
-    for (int i = 0; i < cfg.ncl; ++i) {
-        topo.mols.push_back(simio::MolSpan{atom_cursor, 1, simio::MolType::Anion});
-        atom_cursor += 1;
+    if (cfg.has_mol_blocks && !cfg.mol_blocks.empty()) {
+        for (const auto& block : cfg.mol_blocks) {
+            const simio::MolType t = block.type;
+            const int n = block.nmol;
+            const int natoms = block.natoms_per_mol;
+            for (int i = 0; i < n; ++i) {
+                topo.mols.push_back(simio::MolSpan{atom_cursor, natoms, t});
+                atom_cursor += natoms;
+            }
+        }
+    } else {
+        for (int i = 0; i < cfg.nsol; ++i) {
+            topo.mols.push_back(simio::MolSpan{atom_cursor, 3, simio::MolType::Water});
+            atom_cursor += 3;
+        }
+        for (int i = 0; i < cfg.nna; ++i) {
+            topo.mols.push_back(simio::MolSpan{atom_cursor, 1, simio::MolType::Cation});
+            atom_cursor += 1;
+        }
+        for (int i = 0; i < cfg.ncl; ++i) {
+            topo.mols.push_back(simio::MolSpan{atom_cursor, 1, simio::MolType::Anion});
+            atom_cursor += 1;
+        }
     }
 
     topo.build_type_lists();
