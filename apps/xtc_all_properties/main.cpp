@@ -13,6 +13,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "all_props/axial_profile_x_export.hpp"
 #include "all_props/channel_count_xz.hpp"
 #include "all_props/coord_x.hpp"
 #include "all_props/density_x.hpp"
@@ -21,6 +22,7 @@
 #include "all_props/dipole_z_in_x_channel.hpp"
 #include "all_props/gating_flux.hpp"
 #include "all_props/jump_msd.hpp"
+#include "all_props/water_atom_density_x.hpp"
 #include "simio/simio.hpp"
 #include "simio/runtime/cache.hpp"
 #include "simio/runtime/run_config.hpp"
@@ -608,6 +610,12 @@ int main(int argc, char** argv) {
         density_cfg.zmax = cfg.zmax;
         density_cfg.nx = cfg.nx;
         simio::analysis::DensityXAnalyzer density(density_cfg, cache);
+        simio::analysis::WaterAtomDensityXConfig water_atom_density_cfg;
+        water_atom_density_cfg.zmin = cfg.zmin;
+        water_atom_density_cfg.zmax = cfg.zmax;
+        water_atom_density_cfg.nx = cfg.nx;
+        simio::analysis::WaterAtomDensityXAnalyzer water_atom_density(water_atom_density_cfg,
+                                                                      cache);
         const int nz_eff = (cfg.nz > 0) ? cfg.nz : cfg.nx;
         simio::analysis::DensityZInXChannelConfig density_z_cfg;
         density_z_cfg.xmin = cfg.xmin;
@@ -673,7 +681,7 @@ int main(int argc, char** argv) {
                   << " threads=" << cfg.nthreads << " nx=" << cfg.nx << " nz=" << nz_eff
                   << " nsol=" << cfg.nsol << " nna=" << cfg.nna << " ncl=" << cfg.ncl
                   << " nmols_total=" << expected_nmols << " natoms_total=" << expected_natoms
-                  << " x_mode=full_box([0,Lx) for density/dipole/coord/gating]"
+                  << " x_mode=full_box([0,Lx) for density/water-atom-density/dipole/coord/gating]"
                   << " x_channel_for_msd=[" << cfg.xmin << "," << cfg.xmax << "]"
                   << " z=[" << cfg.zmin << "," << cfg.zmax << "] r_cw=" << cfg.r_cw
                   << " r_aw=" << cfg.r_aw << " r_oo=" << cfg.r_oo
@@ -686,6 +694,7 @@ int main(int argc, char** argv) {
 
         int frames_done = 0;
         int frame_idx_global = 0;
+        double x_box_length_nm = 0.0;
         while ((rc = xtc_read_next(&traj)) == exdrOK) {
             const XtcFrame* xr = xtc_tail(&traj);
             if (!xr) {
@@ -707,6 +716,7 @@ int main(int argc, char** argv) {
                 xtc_close(&traj);
                 throw std::runtime_error("Invalid box lengths.");
             }
+            if (frames_done == 0) x_box_length_nm = fr.pbc.L[0];
 
             for (int ai = 0; ai < expected_natoms; ++ai) {
                 fr.atoms.x[static_cast<size_t>(ai)] = xr->x[ai][0];
@@ -718,6 +728,7 @@ int main(int argc, char** argv) {
             pipe.process_frame(topo, fr, ms);
 
             density.process_frame(topo, fr, ms);
+            water_atom_density.process_frame(topo, fr, ms);
             density_z.process_frame(topo, fr, ms);
             dipole_z.process_frame(topo, fr, ms);
             dipole.process_frame(topo, fr, ms);
@@ -738,6 +749,9 @@ int main(int argc, char** argv) {
         }
 
         const std::string density_csv = join_out_path(cfg.out_dir, "density_x.csv");
+        const std::string water_atom_density_csv =
+            join_out_path(cfg.out_dir, "water_atom_density_x.csv");
+        const std::string axial_profile_csv = join_out_path(cfg.out_dir, "axial_profile_x.csv");
         const std::string density_z_csv = join_out_path(cfg.out_dir, "density_z.csv");
         const std::string dipole_csv = join_out_path(cfg.out_dir, "dipole_x.csv");
         const std::string dipole_z_csv = join_out_path(cfg.out_dir, "dipole_z.csv");
@@ -755,6 +769,17 @@ int main(int argc, char** argv) {
             join_out_path(cfg.out_dir, "vacf_z_channel_raw.csv");
 
         density.write_csv(density_csv);
+        water_atom_density.write_csv(water_atom_density_csv);
+        simio::analysis::AxialProfileXExportConfig axial_profile_cfg;
+        axial_profile_cfg.xmin = cfg.xmin;
+        axial_profile_cfg.xmax = cfg.xmax;
+        axial_profile_cfg.box_length_x_nm = x_box_length_nm;
+        simio::analysis::write_axial_profile_x_csv(axial_profile_csv,
+                                                   axial_profile_cfg,
+                                                   density,
+                                                   water_atom_density,
+                                                   dipole,
+                                                   coord);
         density_z.write_csv(density_z_csv);
         dipole_z.write_csv(dipole_z_csv);
         dipole.write_csv(dipole_csv);
@@ -776,6 +801,8 @@ int main(int argc, char** argv) {
 
         std::cout << "Processed " << frames_done << " frame(s).\n";
         std::cout << "  wrote: " << density_csv << "\n";
+        std::cout << "  wrote: " << water_atom_density_csv << "\n";
+        std::cout << "  wrote: " << axial_profile_csv << "\n";
         std::cout << "  wrote: " << density_z_csv << "\n";
         std::cout << "  wrote: " << dipole_csv << "\n";
         std::cout << "  wrote: " << dipole_z_csv << "\n";

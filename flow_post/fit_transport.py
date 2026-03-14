@@ -4,51 +4,41 @@ import json
 import re
 import numpy as np
 import pandas as pd
-
 from config_flow import (
     FIELD_TO_E,
-    FIT_LAST_NS_DEFAULT,
-    I_END,
-    I_START,
     LY_NM,
+    FIT_LAST_NS_DEFAULT,
     PATTERN,
-    RUNS_TRANSPORT_INPUT_GLOB,
+    I_START,
+    I_END,
     SIGMA_E_MAX_V_NM,
-    TRANSPORT_FITS_DIRNAME,
 )
-from transport_io import infer_field_dir, read_replica, resolve_replica_files
 
 E_CHARGE_C = 1.602176634e-19  # C
 NM_TO_M = 1e-9
-
 
 def step_hold_interp(x_new, x, y):
     idx = np.searchsorted(x, x_new, side="right") - 1
     idx = np.clip(idx, 0, len(y) - 1)
     return y[idx]
 
-
 def robust_dt_ps(t):
     d = np.diff(t)
     d = d[d > 0]
     return float(np.median(d)) if d.size else float("nan")
 
-
 def make_grid_ps(t_min, t_max, dt_ps):
     n = int(np.floor((t_max - t_min) / dt_ps)) + 1
     return t_min + np.arange(n) * dt_ps
 
-
 def fit_slope(t_ns, y):
-    a, _b = np.polyfit(t_ns, y, 1)
+    a, b = np.polyfit(t_ns, y, 1)
     return float(a)
-
 
 def current_from_slope(slope_per_ns, slope_sem_per_ns, charge_sign):
     i_mean = charge_sign * E_CHARGE_C * slope_per_ns * 1e9
     i_sem = charge_sign * E_CHARGE_C * slope_sem_per_ns * 1e9
     return float(i_mean), float(abs(i_sem))
-
 
 def conductivity_from_current(i_mean_a, i_sem_a, e_v_nm, area_m2):
     if e_v_nm <= 0:
@@ -60,11 +50,10 @@ def conductivity_from_current(i_mean_a, i_sem_a, e_v_nm, area_m2):
     sigma_sem = i_sem_a / (e_v_m * area_m2)
     return float(sigma_mean), float(sigma_sem)
 
-
-def parse_condition(input_root: Path):
-    parts = input_root.resolve().parts
+def parse_condition(compile_dir: Path):
+    parts = compile_dir.resolve().parts
     field = next((p for p in parts if p.startswith("FIELD_")), None)
-    charge = next((p for p in parts if p in ("neutral", "pos", "neg", "positive", "negative")), None)
+    charge = next((p for p in parts if p in ("neutral","pos","neg","positive","negative")), None)
     L_nm = None
     H_nm = None
     for p in parts:
@@ -73,36 +62,35 @@ def parse_condition(input_root: Path):
         if re.fullmatch(r"single_H_\d+", p):
             H_nm = float(p.split("_")[2]) / 10.0
     if field is None or charge is None or L_nm is None or H_nm is None:
-        raise ValueError(f"Cannot parse condition from path: {input_root}")
+        raise ValueError(f"Cannot parse condition from path: {compile_dir}")
     if field not in FIELD_TO_E:
         raise ValueError(f"Unknown field tag {field}")
     return dict(field=field, E_V_nm=float(FIELD_TO_E[field]), charge=charge, L_nm=L_nm, H_nm=H_nm)
 
+def read_replica(path: Path, baseline_zero=True):
+    df = pd.read_csv(path, sep=r"\s+", comment="#", header=None, engine="python")
+    df = df.iloc[:, :4].copy()
+    df.columns = ["time_ps","SOL","NA","CL"]
+    df = df.sort_values("time_ps").reset_index(drop=True)
+    t = df["time_ps"].to_numpy(float)
+    SOL = df["SOL"].to_numpy(float)
+    NA  = df["NA"].to_numpy(float)
+    CL  = df["CL"].to_numpy(float)
+    if baseline_zero:
+        SOL -= SOL[0]; NA -= NA[0]; CL -= CL[0]
+    return t, SOL, NA, CL
 
-def load_reps(
-    input_root: Path,
-    replica_files=None,
-    replica_glob=RUNS_TRANSPORT_INPUT_GLOB,
-    pattern=PATTERN,
-    i_start=I_START,
-    i_end=I_END,
-):
+def load_reps(compile_dir: Path):
     reps, used = [], []
-    files = resolve_replica_files(
-        input_root,
-        i_start=i_start,
-        i_end=i_end,
-        pattern=pattern,
-        replica_files=replica_files,
-        replica_glob=replica_glob,
-    )
-    for f in files:
+    for i in range(I_START, I_END + 1):
+        f = compile_dir / PATTERN.format(i=i)
+        if not f.exists():
+            continue
         reps.append(read_replica(f, baseline_zero=True))
         used.append(str(f))
     if not reps:
-        raise RuntimeError(f"No replicas found in {input_root}")
+        raise RuntimeError(f"No replicas found in {compile_dir}")
     return reps, used
-
 
 def align(reps):
     dts = []
@@ -117,10 +105,9 @@ def align(reps):
     t_max = min(t[-1] for (t, *_r) in reps)
     grid_ps = make_grid_ps(t_min, t_max, dt_ps)
     SOL = np.vstack([step_hold_interp(grid_ps, t, sol) for (t, sol, na, cl) in reps]).T
-    NA = np.vstack([step_hold_interp(grid_ps, t, na) for (t, sol, na, cl) in reps]).T
-    CL = np.vstack([step_hold_interp(grid_ps, t, cl) for (t, sol, na, cl) in reps]).T
+    NA  = np.vstack([step_hold_interp(grid_ps, t, na)  for (t, sol, na, cl) in reps]).T
+    CL  = np.vstack([step_hold_interp(grid_ps, t, cl)  for (t, sol, na, cl) in reps]).T
     return grid_ps, dt_ps, SOL, NA, CL
-
 
 def slope_stats(t_ns, Y, fit_last_ns):
     t1 = t_ns[-1]
@@ -143,28 +130,12 @@ def slope_stats(t_ns, Y, fit_last_ns):
         slopes=slopes,
     )
 
-
-def process_input_root(
-    input_root: Path,
-    fit_last_ns: float,
-    replica_files=None,
-    replica_glob=RUNS_TRANSPORT_INPUT_GLOB,
-    pattern=PATTERN,
-    i_start=I_START,
-    i_end=I_END,
-):
+def process(compile_dir: Path, fit_last_ns: float):
     if LY_NM <= 0:
         raise SystemExit("Set LY_NM > 0 in config_flow.py to compute conductivity.")
 
-    cond = parse_condition(input_root)
-    reps, used = load_reps(
-        input_root,
-        replica_files=replica_files,
-        replica_glob=replica_glob,
-        pattern=pattern,
-        i_start=i_start,
-        i_end=i_end,
-    )
+    cond = parse_condition(compile_dir)
+    reps, used = load_reps(compile_dir)
     grid_ps, dt_ps, SOL, NA, CL = align(reps)
     t_ns = grid_ps * 1e-3
 
@@ -191,24 +162,21 @@ def process_input_root(
 
     # Current density
     j_mean_A_m2 = I_mean_A / S_m2
-    j_sem_A_m2 = I_sem_A / S_m2
+    j_sem_A_m2  = I_sem_A  / S_m2
     j_NA_mean_A_m2 = I_NA_mean_A / S_m2
-    j_NA_sem_A_m2 = I_NA_sem_A / S_m2
+    j_NA_sem_A_m2  = I_NA_sem_A  / S_m2
     j_CL_mean_A_m2 = I_CL_mean_A / S_m2
-    j_CL_sem_A_m2 = I_CL_sem_A / S_m2
+    j_CL_sem_A_m2  = I_CL_sem_A  / S_m2
 
     # Conductivity (undefined at E=0 and optionally restricted to linear regime)
     E_V_nm = cond["E_V_nm"]
     sigma_mean_S_m, sigma_sem_S_m = conductivity_from_current(I_mean_A, I_sem_A, E_V_nm, S_m2)
-    sigma_NA_mean_S_m, sigma_NA_sem_S_m = conductivity_from_current(
-        I_NA_mean_A, I_NA_sem_A, E_V_nm, S_m2
-    )
-    sigma_CL_mean_S_m, sigma_CL_sem_S_m = conductivity_from_current(
-        I_CL_mean_A, I_CL_sem_A, E_V_nm, S_m2
-    )
+    sigma_NA_mean_S_m, sigma_NA_sem_S_m = conductivity_from_current(I_NA_mean_A, I_NA_sem_A, E_V_nm, S_m2)
+    sigma_CL_mean_S_m, sigma_CL_sem_S_m = conductivity_from_current(I_CL_mean_A, I_CL_sem_A, E_V_nm, S_m2)
 
     sigma_in_linear_regime = int(
-        (E_V_nm > 0) and (SIGMA_E_MAX_V_NM is None or E_V_nm <= SIGMA_E_MAX_V_NM)
+        (E_V_nm > 0)
+        and (SIGMA_E_MAX_V_NM is None or E_V_nm <= SIGMA_E_MAX_V_NM)
     )
 
     row = {
@@ -253,68 +221,21 @@ def process_input_root(
     }
     return row
 
-
-# Backward compatibility helper for old callers.
 def process_compile_dir(compile_dir: Path, fit_last_ns: float):
-    return process_input_root(
-        compile_dir,
-        fit_last_ns,
-        replica_glob=None,
-        pattern=PATTERN,
-    )
-
+    return process(compile_dir, fit_last_ns)
 
 if __name__ == "__main__":
     import argparse
-
     ap = argparse.ArgumentParser()
-    ap.add_argument("input_root", type=str, help="Input root (normal: .../FIELD_XX/runs)")
+    ap.add_argument("compile_dir", type=str, help=".../FIELD_XX/compile")
     ap.add_argument("--fit-last-ns", type=float, default=FIT_LAST_NS_DEFAULT)
-    ap.add_argument(
-        "--out",
-        type=str,
-        default=None,
-        help="Output TSV (default: FIELD_XX/transport_fits/transport.tsv)",
-    )
-    ap.add_argument(
-        "--replica-file",
-        action="append",
-        default=[],
-        help="Explicit replica input file. Repeat for multiple.",
-    )
-    ap.add_argument(
-        "--replica-glob",
-        type=str,
-        default=RUNS_TRANSPORT_INPUT_GLOB,
-        help=f"Glob relative to input_root (default: {RUNS_TRANSPORT_INPUT_GLOB})",
-    )
-    ap.add_argument(
-        "--legacy-indexed-counts",
-        action="store_true",
-        help="Use legacy indexed files (count_XX.dat) via --pattern and index range.",
-    )
-    ap.add_argument("--pattern", type=str, default=PATTERN, help="Legacy pattern for indexed replica files.")
-    ap.add_argument("--i-start", type=int, default=I_START)
-    ap.add_argument("--i-end", type=int, default=I_END)
+    ap.add_argument("--out", type=str, default=None)
     args = ap.parse_args()
 
-    input_root = Path(args.input_root)
-    replica_glob = None if args.legacy_indexed_counts else args.replica_glob
-    row = process_input_root(
-        input_root,
-        args.fit_last_ns,
-        replica_files=[Path(p) for p in args.replica_file],
-        replica_glob=replica_glob,
-        pattern=args.pattern,
-        i_start=args.i_start,
-        i_end=args.i_end,
-    )
+    compile_dir = Path(args.compile_dir)
+    row = process(compile_dir, args.fit_last_ns)
 
-    if args.out:
-        out = Path(args.out)
-    else:
-        out = infer_field_dir(input_root) / TRANSPORT_FITS_DIRNAME / "transport.tsv"
+    out = Path(args.out) if args.out else (compile_dir / "reduced" / "transport.tsv")
     out.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame([row]).to_csv(out, sep="\t", index=False)
     print("Wrote:", out)
-

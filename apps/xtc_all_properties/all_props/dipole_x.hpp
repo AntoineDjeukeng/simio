@@ -30,6 +30,14 @@ class DipoleXAnalyzer {
     void write_csv(const std::string& path) const;
 
     int nframes() const { return nframes_; }
+    int nx() const { return cfg_.nx; }
+    double x_center(int i) const { return x_centers_.at(static_cast<size_t>(i)); }
+    double mux_mean(int i) const { return mux_.mean(i, nframes_); }
+    double mux_sem(int i) const { return mux_.sem(i, nframes_); }
+    double muz_mean(int i) const { return muz_raw_.mean(i, nframes_); }
+    double muz_sem(int i) const { return muz_raw_.sem(i, nframes_); }
+    double muz_fold_mean(int i) const { return muz_fold_.mean(i, nframes_); }
+    double muz_fold_sem(int i) const { return muz_fold_.sem(i, nframes_); }
 
   private:
     DipoleXConfig cfg_{};

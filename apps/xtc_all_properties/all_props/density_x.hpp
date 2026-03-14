@@ -29,6 +29,10 @@ class DensityXAnalyzer {
     void write_csv(const std::string& path) const;
 
     int nframes() const { return nframes_; }
+    int nx() const { return cfg_.nx; }
+    double x_center(int i) const { return (static_cast<double>(i) + 0.5) * dx_; }
+    double rho_mean(Species s, int i) const { return rho_[species_index(s)].mean(i, nframes_); }
+    double rho_sem(Species s, int i) const { return rho_[species_index(s)].sem(i, nframes_); }
 
   private:
     DensityXConfig cfg_{};

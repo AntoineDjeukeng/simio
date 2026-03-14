@@ -71,3 +71,7 @@ test_config.json
 
 flow_post
 simio_single_run_report_sum.ipynb
+*.gro
+xtc_min*
+*.json
+

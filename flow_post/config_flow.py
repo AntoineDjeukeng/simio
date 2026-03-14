@@ -32,26 +32,4 @@ OHMIC_WEIGHT = "I_sem"   # "I_sem" or "none"
 
 # Replicas
 I_START, I_END = 1, 20
-
-# ============================================================
-# Transport input source
-# Primary workflow is runs/rep_XX/transport_input.tsv.
-# Legacy compile/count_XX.dat is kept as compatibility only.
-# ============================================================
-
-TRANSPORT_INPUT_MODE = "runs_transport_tsv"
-
-# New per-replica outputs under FIELD_XX/runs/rep_XX/
-RUNS_DIRNAME = "runs"
-RUN_REPLICA_DIR_PATTERN = "rep_{i:02d}"
-GATING_FLUX_FILENAME = "gating_flux.csv"
-RUNS_TRANSPORT_INPUT_RELATIVE = "transport_input.tsv"
-RUNS_TRANSPORT_INPUT_GLOB = f"rep_*/{RUNS_TRANSPORT_INPUT_RELATIVE}"
-
-# New default output locations at FIELD_XX scope
-TRANSPORT_REDUCTION_DIRNAME = "transport_reduction"
-TRANSPORT_FITS_DIRNAME = "transport_fits"
-
-# Legacy compatibility only
-COUNT_PATTERN = "count_{i:02d}.dat"
-PATTERN = COUNT_PATTERN
+PATTERN = "count_{i:02d}.dat"

@@ -2,7 +2,7 @@
 from pathlib import Path
 import pandas as pd
 
-from fit_transport import process_compile_dir, process_input_root  # same folder import
+from fit_transport import process_compile_dir  # same folder import
 
 ROOT = Path("/data/antoine/Flow_CDI")
 
@@ -25,18 +25,14 @@ for h in H_DIRS:
             if not base.exists():
                 continue
             for fld in FIELD_DIRS:
-                input_root = base / fld / "runs"
+                compile_dir = base / fld / "compile"
+                if not compile_dir.exists():
+                    continue
                 try:
-                    if input_root.exists():
-                        row = process_input_root(input_root, fit_last_ns=FIT_LAST_NS)
-                    else:
-                        compile_dir = base / fld / "compile"
-                        if not compile_dir.exists():
-                            continue
-                        row = process_compile_dir(compile_dir, fit_last_ns=FIT_LAST_NS)
+                    row = process_compile_dir(compile_dir, fit_last_ns=FIT_LAST_NS)
                     rows.append(row)
                 except Exception as e:
-                    print("SKIP", input_root, "->", e)
+                    print("SKIP", compile_dir, "->", e)
 
 df = pd.DataFrame(rows)
 out = ROOT / "RESULTS" / "master_transport.tsv"

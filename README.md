@@ -36,7 +36,8 @@ make distclean    # remove build/ entirely
 
 ## Unified One-Pass Run (All Properties)
 
-Run one driver that reads XTC once, computes all current analysis properties, and writes ten CSV files:
+Run one driver that reads XTC once, computes all current analysis properties, and writes CSV files for
+species density, water atom density, dipole order, coordination/HB, channel counts, gating, and transport:
 
 ```bash
 ./build/simio_xtc_all_properties react_neu_9_6_20.xtc 100 4 0.5 5896 110 110 7.11 12.89 0.901 1.801 100 0.35 0.38 0.35 all results 50
@@ -184,6 +185,8 @@ Frame window semantics:
 
 Outputs:
 - `<out_dir>/density_x.csv`
+- `<out_dir>/water_atom_density_x.csv`
+- `<out_dir>/axial_profile_x.csv`
 - `<out_dir>/density_z.csv`
 - `<out_dir>/dipole_x.csv`
 - `<out_dir>/dipole_z.csv`
@@ -207,6 +210,29 @@ Outputs:
 
 `<out_dir>/density_z.csv` includes ionic charge density:
 - `rho_q_e_mean`, `rho_q_e_sem` with `rho_q = rho_na - rho_cl` (units: `e/nm^3`)
+
+`<out_dir>/density_x.csv` remains molecule/species density:
+- `water` is binned from the water molecular key (COM-style key used elsewhere in the pipeline)
+- `na` and `cl` are unchanged because ion molecule = ion atom
+
+`<out_dir>/water_atom_density_x.csv` columns:
+- `x_center_nm`
+- `rho_ow_mean`, `rho_ow_sem`
+- `rho_hw_mean`, `rho_hw_sem`
+- `count_ow_mean`, `count_ow_sem`
+- `count_hw_mean`, `count_hw_sem`
+
+`<out_dir>/axial_profile_x.csv` is a plotting-oriented join of the x-profile outputs:
+- pore-centered coordinates and channel edge metadata:
+  `x_relative_nm`, `channel_center_nm`, `channel_edge_left_nm`, `channel_edge_right_nm`
+- top-panel atom densities:
+  `rho_ow_*`, `rho_hw_*`, `rho_na_*`, `rho_cl_*`
+- middle-panel dipole projections:
+  `mux_*`, `muz_*`, `muz_fold_*`
+- bottom-panel bond metrics:
+  `ac_*`, `na_bond_*`, `dn_*`, `cl_bond_*`
+- dashed-line means already derived:
+  `ac_plus_na_mean`, `dn_plus_cl_mean`
 
 `<out_dir>/jump_msd.csv` columns:
 - lag rows with sliding windows: `lag_frames=1..jump_keep_frames`

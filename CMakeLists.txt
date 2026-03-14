@@ -72,15 +72,22 @@ if(SIMIO_BUILD_EXAMPLES)
     target_link_libraries(simio_xtc_gating_flux PRIVATE simio simio_properties reader_xtc)
 
     add_executable(simio_xtc_all_properties
-        examples/xtc_all_properties.cpp
-        examples/all_props/channel_count_xz.cpp
-        examples/all_props/density_x.cpp
-        examples/all_props/density_z_in_x_channel.cpp
-        examples/all_props/dipole_x.cpp
-        examples/all_props/dipole_z_in_x_channel.cpp
-        examples/all_props/coord_x.cpp
-        examples/all_props/gating_flux.cpp
-        examples/all_props/jump_msd.cpp
+        apps/xtc_all_properties/main.cpp
+        apps/xtc_all_properties/all_props/axial_profile_x_export.cpp
+        apps/xtc_all_properties/all_props/channel_count_xz.cpp
+        apps/xtc_all_properties/all_props/coord_x.cpp
+        apps/xtc_all_properties/all_props/density_x.cpp
+        apps/xtc_all_properties/all_props/density_z_in_x_channel.cpp
+        apps/xtc_all_properties/all_props/dipole_x.cpp
+        apps/xtc_all_properties/all_props/dipole_z_in_x_channel.cpp
+        apps/xtc_all_properties/all_props/gating_flux.cpp
+        apps/xtc_all_properties/all_props/jump_msd.cpp
+        apps/xtc_all_properties/all_props/water_atom_density_x.cpp
+        src/runtime/run_config.cpp
+        src/analysis/intrinsics/x_grid_cache.cpp
+        src/analysis/intrinsics/z_grid_cache.cpp
+        src/analysis/intrinsics/channel_roi.cpp
+        src/analysis/intrinsics/in_channel_mask.cpp
     )
     target_link_libraries(simio_xtc_all_properties PRIVATE simio reader_xtc)
 

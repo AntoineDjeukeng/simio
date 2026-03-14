@@ -5,9 +5,7 @@ from config_flow import ROOT, RESULTS
 
 RESULTS.mkdir(parents=True, exist_ok=True)
 
-files = sorted(ROOT.rglob("FIELD_*/transport_fits/transport.tsv"))
-if not files:
-    files = sorted(ROOT.rglob("FIELD_*/compile/reduced/transport.tsv"))
+files = sorted(ROOT.rglob("FIELD_*/compile/reduced/transport.tsv"))
 if not files:
     raise SystemExit("No transport.tsv found yet. Run fit_transport.py first.")
 

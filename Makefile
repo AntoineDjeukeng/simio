@@ -19,8 +19,10 @@ CPP_SRCS := \
 	src/analysis/intrinsics/z_grid_cache.cpp \
 	src/analysis/intrinsics/channel_roi.cpp \
 	src/analysis/intrinsics/in_channel_mask.cpp \
+  apps/xtc_all_properties/all_props/axial_profile_x_export.cpp \
   apps/xtc_all_properties/all_props/channel_count_xz.cpp \
   apps/xtc_all_properties/all_props/density_x.cpp \
+  apps/xtc_all_properties/all_props/water_atom_density_x.cpp \
   apps/xtc_all_properties/all_props/density_z_in_x_channel.cpp \
   apps/xtc_all_properties/all_props/dipole_x.cpp \
   apps/xtc_all_properties/all_props/dipole_z_in_x_channel.cpp \
