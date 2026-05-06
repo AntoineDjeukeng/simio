@@ -28,10 +28,10 @@ else()
 endif()
 
 add_library(reader_xtc STATIC
-    reader/src/xtc.c
-    reader/src/stub_trr.c
+    src/io/xtc_c/reader/src/xtc.c
+    src/io/xtc_c/reader/src/stub_trr.c
 )
-target_include_directories(reader_xtc PUBLIC reader/include)
+target_include_directories(reader_xtc PUBLIC src/io/xtc_c/reader/include)
 
 add_library(simio_properties STATIC
     src/properties/DensityXZ.cpp
@@ -82,6 +82,9 @@ if(SIMIO_BUILD_EXAMPLES)
         apps/xtc_all_properties/all_props/dipole_z_in_x_channel.cpp
         apps/xtc_all_properties/all_props/gating_flux.cpp
         apps/xtc_all_properties/all_props/jump_msd.cpp
+        apps/xtc_all_properties/all_props/nacl_association_x.cpp
+        apps/xtc_all_properties/all_props/nacl_cluster_x.cpp
+        apps/xtc_all_properties/all_props/replica_features.cpp
         apps/xtc_all_properties/all_props/water_atom_density_x.cpp
         src/runtime/run_config.cpp
         src/analysis/intrinsics/x_grid_cache.cpp
@@ -90,6 +93,9 @@ if(SIMIO_BUILD_EXAMPLES)
         src/analysis/intrinsics/in_channel_mask.cpp
     )
     target_link_libraries(simio_xtc_all_properties PRIVATE simio reader_xtc)
+
+    add_executable(simio_scan_xtc apps/scan/scan_xtc.cpp)
+    target_link_libraries(simio_scan_xtc PRIVATE reader_xtc)
 
     add_executable(simio_layered_demo examples/layered_arch_demo.cpp)
     target_link_libraries(simio_layered_demo PRIVATE simio simio_properties)

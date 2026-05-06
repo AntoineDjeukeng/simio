@@ -36,6 +36,11 @@ struct RunConfig {
   double r_cw{0.35};
   double r_aw{0.38};
   double r_oo{0.35};
+  double r_nacl{0.35};
+  double r_cip{0.35};
+  double r_ssip{0.55};
+  double r_naow{0.35};
+  double r_clow{0.38};
 
   // cell list
   double grid_cell_nm{0.5};

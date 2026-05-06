@@ -22,6 +22,9 @@
 #include "all_props/dipole_z_in_x_channel.hpp"
 #include "all_props/gating_flux.hpp"
 #include "all_props/jump_msd.hpp"
+#include "all_props/nacl_association_x.hpp"
+#include "all_props/nacl_cluster_x.hpp"
+#include "all_props/replica_features.hpp"
 #include "all_props/water_atom_density_x.hpp"
 #include "simio/simio.hpp"
 #include "simio/runtime/cache.hpp"
@@ -83,6 +86,11 @@ struct CliConfig {
     double r_cw = 0.35;
     double r_aw = 0.38;
     double r_oo = 0.35;
+    double r_nacl = 0.35;
+    double r_cip = 0.35;
+    double r_ssip = 0.55;
+    double r_naow = 0.35;
+    double r_clow = 0.38;
     simio::analysis::GatingSelection gating_selection = simio::analysis::GatingSelection::All;
     std::string out_dir = ".";
     int jump_keep_frames = 50;
@@ -396,6 +404,8 @@ void validate_cli_config(const CliConfig& c) {
     }
     if (c.max_frames <= 0 || c.nthreads <= 0 || c.grid_cell_nm <= 0.0 || c.nsol < 0 || c.nna < 0 ||
         c.ncl < 0 || c.nx <= 0 || c.nz < 0 || c.r_cw <= 0.0 || c.r_aw <= 0.0 || c.r_oo <= 0.0 ||
+        c.r_nacl <= 0.0 ||
+        c.r_cip <= 0.0 || c.r_ssip <= c.r_cip || c.r_naow <= 0.0 || c.r_clow <= 0.0 ||
         c.jump_keep_frames <= 0 || c.bound_layer_nm < 0.0) {
         throw std::runtime_error("Invalid non-positive numeric argument.");
     }
@@ -410,7 +420,8 @@ void print_usage(const char* prog) {
         << " <trajectory.xtc> [max_frames=100] [threads=4] [grid_cell_nm=0.5] [nsol=5896] [nna=110] [ncl=110]"
         << " [xmin=7.11] [xmax=12.89] [zmin=0.901] [zmax=1.801] [nx=100]"
         << " [r_cw=0.35] [r_aw=0.38] [r_oo=0.35] [gating_sel=all] [out_dir=.] [jump_keep_frames=50]"
-        << " [frame_begin=0] [frame_end=-1]\n"
+        << " [frame_begin=0] [frame_end=-1] [r_nacl=0.35] [r_cip=0.35] [r_ssip=0.55]"
+        << " [r_naow=0.35] [r_clow=0.38]\n"
         << "   or: " << prog << " --config <config.json>\n"
         << "   or: " << prog << " <config.json>\n"
         << "JSON extras: topology_json, use_channel_bounds_from_topology, water_names, na_names, cl_names, bound_layer_nm, frame_begin, frame_end\n";
@@ -438,6 +449,11 @@ CliConfig parse_positional_cli(int argc, char** argv) {
     if (argc > 18) c.jump_keep_frames = parse_int_arg(argv[18], "jump_keep_frames");
     if (argc > 19) c.frame_begin = parse_int_arg(argv[19], "frame_begin");
     if (argc > 20) c.frame_end = parse_int_arg(argv[20], "frame_end");
+    if (argc > 21) c.r_nacl = parse_double_arg(argv[21], "r_nacl");
+    if (argc > 22) c.r_cip = parse_double_arg(argv[22], "r_cip");
+    if (argc > 23) c.r_ssip = parse_double_arg(argv[23], "r_ssip");
+    if (argc > 24) c.r_naow = parse_double_arg(argv[24], "r_naow");
+    if (argc > 25) c.r_clow = parse_double_arg(argv[25], "r_clow");
 
     validate_cli_config(c);
     return c;
@@ -465,6 +481,11 @@ CliConfig parse_json_cli(const std::string& json_path) {
     const auto rcw_v = json_find_number_any(text, {"r_cw"});
     const auto raw_v = json_find_number_any(text, {"r_aw"});
     const auto roo_v = json_find_number_any(text, {"r_oo"});
+    const auto rnacl_v = json_find_number_any(text, {"r_nacl", "r_nacl_cluster", "nacl_cutoff_nm"});
+    const auto rcip_v = json_find_number_any(text, {"r_cip", "r_CIP"});
+    const auto rssip_v = json_find_number_any(text, {"r_ssip", "r_SSIP"});
+    const auto rnaow_v = json_find_number_any(text, {"r_naow", "r_NaOW"});
+    const auto rclow_v = json_find_number_any(text, {"r_clow", "r_ClOW"});
     const auto gating_s_v = json_find_string_any(text, {"gating_sel", "gating_selection"});
     const auto gating_n_v = json_find_number_any(text, {"gating_sel", "gating_selection"});
     const auto out_dir_v = json_find_string_any(text, {"out_dir", "out_prefix"});
@@ -500,6 +521,11 @@ CliConfig parse_json_cli(const std::string& json_path) {
     if (rcw_v) c.r_cw = parse_double_text(*rcw_v, "r_cw");
     if (raw_v) c.r_aw = parse_double_text(*raw_v, "r_aw");
     if (roo_v) c.r_oo = parse_double_text(*roo_v, "r_oo");
+    if (rnacl_v) c.r_nacl = parse_double_text(*rnacl_v, "r_nacl");
+    if (rcip_v) c.r_cip = parse_double_text(*rcip_v, "r_cip");
+    if (rssip_v) c.r_ssip = parse_double_text(*rssip_v, "r_ssip");
+    if (rnaow_v) c.r_naow = parse_double_text(*rnaow_v, "r_naow");
+    if (rclow_v) c.r_clow = parse_double_text(*rclow_v, "r_clow");
     if (gating_s_v) c.gating_selection = simio::analysis::parse_gating_selection(*gating_s_v);
     if (gating_n_v) c.gating_selection = simio::analysis::parse_gating_selection(*gating_n_v);
     if (out_dir_v) c.out_dir = *out_dir_v;
@@ -651,6 +677,24 @@ int main(int argc, char** argv) {
         coord_cfg.r_oo = cfg.r_oo;
         simio::analysis::CoordXAnalyzer coord(coord_cfg, cache);
 
+        simio::analysis::NaClClusterXConfig nacl_cluster_cfg;
+        // Match density/coordination profiles: full x-length [0,Lx), restricted to the z slab.
+        nacl_cluster_cfg.zmin = cfg.zmin;
+        nacl_cluster_cfg.zmax = cfg.zmax;
+        nacl_cluster_cfg.nx = cfg.nx;
+        nacl_cluster_cfg.r_nacl = cfg.r_nacl;
+        simio::analysis::NaClClusterXAnalyzer nacl_cluster(nacl_cluster_cfg, cache);
+
+        simio::analysis::NaClAssociationXConfig nacl_assoc_cfg;
+        nacl_assoc_cfg.zmin = cfg.zmin;
+        nacl_assoc_cfg.zmax = cfg.zmax;
+        nacl_assoc_cfg.nx = cfg.nx;
+        nacl_assoc_cfg.r_cip = cfg.r_cip;
+        nacl_assoc_cfg.r_ssip = cfg.r_ssip;
+        nacl_assoc_cfg.r_naow = cfg.r_naow;
+        nacl_assoc_cfg.r_clow = cfg.r_clow;
+        simio::analysis::NaClAssociationXAnalyzer nacl_assoc(nacl_assoc_cfg, cache);
+
         simio::analysis::ChannelCountXZConfig channel_count_cfg;
         channel_count_cfg.xmin = cfg.xmin;
         channel_count_cfg.xmax = cfg.xmax;
@@ -685,6 +729,9 @@ int main(int argc, char** argv) {
                   << " x_channel_for_msd=[" << cfg.xmin << "," << cfg.xmax << "]"
                   << " z=[" << cfg.zmin << "," << cfg.zmax << "] r_cw=" << cfg.r_cw
                   << " r_aw=" << cfg.r_aw << " r_oo=" << cfg.r_oo
+                  << " r_nacl=" << cfg.r_nacl
+                  << " r_cip=" << cfg.r_cip << " r_ssip=" << cfg.r_ssip
+                  << " r_naow=" << cfg.r_naow << " r_clow=" << cfg.r_clow
                   << " bound_layer_nm=" << cfg.bound_layer_nm
                   << " jump_keep_frames=" << cfg.jump_keep_frames
                   << " out_dir=" << cfg.out_dir
@@ -733,6 +780,8 @@ int main(int argc, char** argv) {
             dipole_z.process_frame(topo, fr, ms);
             dipole.process_frame(topo, fr, ms);
             coord.process_frame(topo, fr, ms);
+            nacl_cluster.process_frame(topo, fr, ms);
+            nacl_assoc.process_frame(topo, fr, ms);
             channel_count.process_frame(topo, fr, ms, cur_frame_idx);
             gating.process_frame(topo, fr, ms, cur_frame_idx);
             jump.process_frame(topo, fr, ms, cur_frame_idx);
@@ -756,9 +805,12 @@ int main(int argc, char** argv) {
         const std::string dipole_csv = join_out_path(cfg.out_dir, "dipole_x.csv");
         const std::string dipole_z_csv = join_out_path(cfg.out_dir, "dipole_z.csv");
         const std::string coord_csv = join_out_path(cfg.out_dir, "coord_x.csv");
+        const std::string nacl_cluster_csv = join_out_path(cfg.out_dir, "nacl_cluster_x.csv");
+        const std::string nacl_assoc_csv = join_out_path(cfg.out_dir, "nacl_association_x.csv");
         const std::string channel_count_csv = join_out_path(cfg.out_dir, "channel_count_xz.csv");
         const std::string gating_csv = join_out_path(cfg.out_dir, "gating_flux.csv");
         const std::string jump_csv = join_out_path(cfg.out_dir, "jump_msd.csv");
+        const std::string replica_features_csv = join_out_path(cfg.out_dir, "replica_features.csv");
         const std::string jump_channel_x_csv = join_out_path(cfg.out_dir, "msd_x_channel.csv");
         const std::string jump_channel_z_csv = join_out_path(cfg.out_dir, "msd_z_channel.csv");
         const std::string state_channel_csv = join_out_path(cfg.out_dir, "state_z_channel.csv");
@@ -784,6 +836,8 @@ int main(int argc, char** argv) {
         dipole_z.write_csv(dipole_z_csv);
         dipole.write_csv(dipole_csv);
         coord.write_csv(coord_csv);
+        nacl_cluster.write_csv(nacl_cluster_csv);
+        nacl_assoc.write_csv(nacl_assoc_csv);
         channel_count.write_csv(channel_count_csv);
         gating.write_csv(gating_csv);
         jump.write_csv(jump_csv);
@@ -798,6 +852,16 @@ int main(int argc, char** argv) {
         std::array<double, 3> iz_vacf_channel_raw_plateau_nm2_per_ps{0.0, 0.0, 0.0};
         jump.write_vacf_z_channel_raw_csv(vacf_z_channel_raw_csv,
                                           &iz_vacf_channel_raw_plateau_nm2_per_ps);
+        simio::analysis::ReplicaFeatureExportConfig feature_cfg;
+        feature_cfg.carbon_left_x_nm = cfg.xmin;
+        feature_cfg.carbon_right_x_nm = cfg.xmax;
+        feature_cfg.metadata_path = cfg.out_dir;
+        simio::analysis::write_replica_features_csv(replica_features_csv,
+                                                    feature_cfg,
+                                                    density_csv,
+                                                    gating_csv,
+                                                    nacl_cluster_csv,
+                                                    nacl_assoc_csv);
 
         std::cout << "Processed " << frames_done << " frame(s).\n";
         std::cout << "  wrote: " << density_csv << "\n";
@@ -807,6 +871,8 @@ int main(int argc, char** argv) {
         std::cout << "  wrote: " << dipole_csv << "\n";
         std::cout << "  wrote: " << dipole_z_csv << "\n";
         std::cout << "  wrote: " << coord_csv << "\n";
+        std::cout << "  wrote: " << nacl_cluster_csv << "\n";
+        std::cout << "  wrote: " << nacl_assoc_csv << "\n";
         std::cout << "  wrote: " << channel_count_csv << "\n";
         std::cout << "  wrote: " << gating_csv << "\n";
         std::cout << "  wrote: " << jump_csv << "\n";
@@ -817,6 +883,7 @@ int main(int argc, char** argv) {
         std::cout << "  wrote: " << vacf_y_csv << "\n";
         std::cout << "  wrote: " << vacf_x_channel_csv << "\n";
         std::cout << "  wrote: " << vacf_z_channel_raw_csv << "\n";
+        std::cout << "  wrote: " << replica_features_csv << "\n";
         std::cout << "[vacf_y plateau D_y_from_vacf last10 (nm^2/ps)] water="
                   << dy_vacf_plateau_nm2_per_ps[0] << " na=" << dy_vacf_plateau_nm2_per_ps[1]
                   << " cl=" << dy_vacf_plateau_nm2_per_ps[2] << "\n";
