@@ -34,15 +34,24 @@ REGIONS = [
     "res_right",
 ]
 
-ASSOCIATION_COLUMNS = [
-    ("CIP", "N_CIP_mean"),
-    ("SSIP", "N_SSIP_mean"),
-    ("ASSOC", "N_ASSOC_mean"),
-    ("CN_NaOW", "CN_NaOW_mean"),
-    ("CN_ClOW", "CN_ClOW_mean"),
-    ("bridge_water", "N_bridge_water_mean"),
-    ("bridged_pair", "N_bridged_pair_mean"),
-    ("CN_shared", "CN_shared_mean"),
+COORD_COLUMNS = [
+    ("IBC", "IBC_mean"),
+    ("IBA", "IBA_mean"),
+    ("BNC", "BNC_mean"),
+    ("BNA", "BNA_mean"),
+    ("BWW", "BWW_mean"),
+    ("HBww_don", "HBww_don_mean"),
+    ("HBww_acc", "HBww_acc_mean"),
+    ("HBww_tot", "HBww_tot_mean"),
+    ("HBwcl_don", "HBwcl_don_mean"),
+]
+
+NACL_CLUSTER_COLUMNS = [
+    ("cluster_count", "nacl_cluster_count_mean"),
+    ("ions_in_clusters", "ions_in_nacl_clusters_mean"),
+    ("na_in_clusters", "na_in_nacl_clusters_mean"),
+    ("cl_in_clusters", "cl_in_nacl_clusters_mean"),
+    ("cluster_size", "nacl_cluster_size_mean"),
 ]
 
 UPSERT_KEYS = ["H", "L", "surface_charge_q", "charge", "field", "replica"]
@@ -275,9 +284,10 @@ def add_density_features(out: Dict[str, object], results_dir: str, x_left: float
         out[f"{label}_center_enrichment"] = float(center) - res_avg
 
 
-def add_association_features(out: Dict[str, object], results_dir: str, x_left: float, x_right: float,
-                             mouth_width_nm: float, box_lx_nm: float, reservoir_fraction: float) -> None:
-    path = os.path.join(results_dir, "nacl_association_x.csv")
+def add_profile_region_features(out: Dict[str, object], path: str, prefix: str,
+                                columns: Sequence[Tuple[str, str]], x_left: float, x_right: float,
+                                mouth_width_nm: float, box_lx_nm: float,
+                                reservoir_fraction: float) -> None:
     if not os.path.exists(path):
         return
 
@@ -288,22 +298,28 @@ def add_association_features(out: Dict[str, object], results_dir: str, x_left: f
         region = region_for_x(x, x_left, x_right, mouth_width_nm, box_lx_nm, reservoir_fraction)
         if region is None:
             continue
-        for feature, col in ASSOCIATION_COLUMNS:
+        for feature, col in columns:
             if col in row:
                 buckets.setdefault((feature, region), []).append(to_float(row[col]))
 
-    for feature, _ in ASSOCIATION_COLUMNS:
+    for feature, _ in columns:
         for region in REGIONS:
-            out[f"NACL_{feature}_{region}_mean"] = mean(buckets.get((feature, region), []))
+            out[f"{prefix}_{feature}_{region}_mean"] = mean(buckets.get((feature, region), []))
 
-    for region in REGIONS:
-        cip = out.get(f"NACL_CIP_{region}_mean", math.nan)
-        ssip = out.get(f"NACL_SSIP_{region}_mean", math.nan)
-        assoc = out.get(f"NACL_ASSOC_{region}_mean", math.nan)
-        bridged = out.get(f"NACL_bridged_pair_{region}_mean", math.nan)
-        out[f"NACL_f_CIP_{region}"] = safe_ratio(cip, assoc)
-        out[f"NACL_f_SSIP_{region}"] = safe_ratio(ssip, assoc)
-        out[f"NACL_f_bridge_{region}"] = safe_ratio(bridged, ssip)
+
+def add_coord_features(out: Dict[str, object], results_dir: str, x_left: float, x_right: float,
+                       mouth_width_nm: float, box_lx_nm: float, reservoir_fraction: float) -> None:
+    add_profile_region_features(out, os.path.join(results_dir, "coord_x.csv"), "COORD",
+                                COORD_COLUMNS, x_left, x_right, mouth_width_nm,
+                                box_lx_nm, reservoir_fraction)
+
+
+def add_nacl_cluster_features(out: Dict[str, object], results_dir: str, x_left: float,
+                              x_right: float, mouth_width_nm: float, box_lx_nm: float,
+                              reservoir_fraction: float) -> None:
+    add_profile_region_features(out, os.path.join(results_dir, "nacl_cluster_x.csv"), "NACL",
+                                NACL_CLUSTER_COLUMNS, x_left, x_right, mouth_width_nm,
+                                box_lx_nm, reservoir_fraction)
 
 
 def pmf_l_from_replica_l(value: object) -> str:
@@ -518,12 +534,13 @@ def ordered_fields(row: Dict[str, object]) -> List[str]:
             f"{label}_center_enrichment",
         ]
 
-    for feature, _ in ASSOCIATION_COLUMNS:
+    for feature, _ in COORD_COLUMNS:
+        for region in REGIONS:
+            fields.append(f"COORD_{feature}_{region}_mean")
+
+    for feature, _ in NACL_CLUSTER_COLUMNS:
         for region in REGIONS:
             fields.append(f"NACL_{feature}_{region}_mean")
-    for feature in ("f_CIP", "f_SSIP", "f_bridge"):
-        for region in REGIONS:
-            fields.append(f"NACL_{feature}_{region}")
 
     return fields
 
@@ -645,8 +662,10 @@ def main() -> int:
     add_density_features(row, results_dir, x_left, x_right, args.mouth_width_nm,
                          geom["box_lx_nm"], args.reservoir_fraction)
     add_gating_features(row, results_dir, args.slope_tail_ns, args.validate_gating)
-    add_association_features(row, results_dir, x_left, x_right, args.mouth_width_nm,
-                             geom["box_lx_nm"], args.reservoir_fraction)
+    add_coord_features(row, results_dir, x_left, x_right, args.mouth_width_nm,
+                       geom["box_lx_nm"], args.reservoir_fraction)
+    add_nacl_cluster_features(row, results_dir, x_left, x_right, args.mouth_width_nm,
+                              geom["box_lx_nm"], args.reservoir_fraction)
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
     action = write_or_upsert_row(args.out, row)

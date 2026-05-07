@@ -363,6 +363,7 @@ RunConfig RunConfig::from_cli(int argc, char** argv) {
   if (argc > 18) c.jump_keep_frames = parse_int_text(argv[18], "jump_keep_frames");
   if (argc > 19) c.frame_begin = parse_int_text(argv[19], "frame_begin");
   if (argc > 20) c.frame_end = parse_int_text(argv[20], "frame_end");
+  if (argc > 21) c.r_nacl = parse_double_text(argv[21], "r_nacl");
 
   // Positional mode has no nz argument: keep behavior explicit.
   c.nz = c.nx;
@@ -391,6 +392,7 @@ RunConfig RunConfig::from_json_file(const std::string& json_path) {
   const auto rcw_v = json_find_number_any(text, {"r_cw"});
   const auto raw_v = json_find_number_any(text, {"r_aw"});
   const auto roo_v = json_find_number_any(text, {"r_oo"});
+  const auto rnacl_v = json_find_number_any(text, {"r_nacl", "r_nacl_cluster", "nacl_cutoff_nm"});
   const auto gating_s_v = json_find_string_any(text, {"gating_sel", "gating_selection"});
   const auto out_dir_v = json_find_string_any(text, {"out_dir", "out_prefix"});
   const auto jump_keep_v = json_find_number_any(text, {"jump_keep_frames"});
@@ -435,6 +437,7 @@ RunConfig RunConfig::from_json_file(const std::string& json_path) {
   if (rcw_v) c.r_cw = parse_double_text(*rcw_v, "r_cw");
   if (raw_v) c.r_aw = parse_double_text(*raw_v, "r_aw");
   if (roo_v) c.r_oo = parse_double_text(*roo_v, "r_oo");
+  if (rnacl_v) c.r_nacl = parse_double_text(*rnacl_v, "r_nacl");
   if (gating_s_v) c.gating_selection = *gating_s_v;
   if (out_dir_v) c.out_dir = *out_dir_v;
   if (jump_keep_v) c.jump_keep_frames = parse_int_text(*jump_keep_v, "jump_keep_frames");
@@ -462,7 +465,9 @@ void RunConfig::validate_or_die() const {
   if (grid_cell_nm <= 0.0) die("grid_cell_nm must be > 0");
   if (nsol < 0 || nna < 0 || ncl < 0) die("nsol/nna/ncl must be >= 0");
   if (nx <= 0 || nz <= 0) die("nx/nz must be > 0");
-  if (r_cw <= 0.0 || r_aw <= 0.0 || r_oo <= 0.0) die("r_cw/r_aw/r_oo must be > 0");
+  if (r_cw <= 0.0 || r_aw <= 0.0 || r_oo <= 0.0 || r_nacl <= 0.0) {
+    die("r_cw/r_aw/r_oo/r_nacl must be > 0");
+  }
   if (jump_keep_frames <= 0) die("jump_keep_frames must be > 0");
   if (bound_layer_nm < 0.0) die("bound_layer_nm must be >= 0");
   if (out_dir.empty()) die("out_dir must be non-empty");

@@ -45,7 +45,11 @@ def discover_replica_dirs(root: Path, hs: Iterable[str], ls: Iterable[str],
 
 def topo_for_replica(rep_dir: Path) -> Path:
     field_dir = rep_dir.parent.parent
-    return field_dir / "topo_setup.json"
+    topo_setup = field_dir / "topo_setup.json"
+    if topo_setup.is_file():
+        return topo_setup
+    charge_dir = field_dir.parent
+    return charge_dir / "mini_topology.json"
 
 
 def has_required_inputs(rep_dir: Path) -> bool:

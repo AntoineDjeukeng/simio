@@ -22,6 +22,7 @@
 #include "all_props/dipole_z_in_x_channel.hpp"
 #include "all_props/gating_flux.hpp"
 #include "all_props/jump_msd.hpp"
+#include "all_props/nacl_cluster_x.hpp"
 #include "all_props/water_atom_density_x.hpp"
 #include "simio/simio.hpp"
 #include "simio/runtime/cache.hpp"
@@ -651,6 +652,13 @@ int main(int argc, char** argv) {
         coord_cfg.r_oo = cfg.r_oo;
         simio::analysis::CoordXAnalyzer coord(coord_cfg, cache);
 
+        simio::analysis::NaClClusterXConfig nacl_cluster_cfg;
+        nacl_cluster_cfg.zmin = cfg.zmin;
+        nacl_cluster_cfg.zmax = cfg.zmax;
+        nacl_cluster_cfg.nx = cfg.nx;
+        nacl_cluster_cfg.r_nacl = cfg.r_nacl;
+        simio::analysis::NaClClusterXAnalyzer nacl_cluster(nacl_cluster_cfg, cache);
+
         simio::analysis::ChannelCountXZConfig channel_count_cfg;
         channel_count_cfg.xmin = cfg.xmin;
         channel_count_cfg.xmax = cfg.xmax;
@@ -685,6 +693,7 @@ int main(int argc, char** argv) {
                   << " x_channel_for_msd=[" << cfg.xmin << "," << cfg.xmax << "]"
                   << " z=[" << cfg.zmin << "," << cfg.zmax << "] r_cw=" << cfg.r_cw
                   << " r_aw=" << cfg.r_aw << " r_oo=" << cfg.r_oo
+                  << " r_nacl=" << cfg.r_nacl
                   << " bound_layer_nm=" << cfg.bound_layer_nm
                   << " jump_keep_frames=" << cfg.jump_keep_frames
                   << " out_dir=" << cfg.out_dir
@@ -733,6 +742,7 @@ int main(int argc, char** argv) {
             dipole_z.process_frame(topo, fr, ms);
             dipole.process_frame(topo, fr, ms);
             coord.process_frame(topo, fr, ms);
+            nacl_cluster.process_frame(topo, fr, ms);
             channel_count.process_frame(topo, fr, ms, cur_frame_idx);
             gating.process_frame(topo, fr, ms, cur_frame_idx);
             jump.process_frame(topo, fr, ms, cur_frame_idx);
@@ -756,6 +766,7 @@ int main(int argc, char** argv) {
         const std::string dipole_csv = join_out_path(cfg.out_dir, "dipole_x.csv");
         const std::string dipole_z_csv = join_out_path(cfg.out_dir, "dipole_z.csv");
         const std::string coord_csv = join_out_path(cfg.out_dir, "coord_x.csv");
+        const std::string nacl_cluster_csv = join_out_path(cfg.out_dir, "nacl_cluster_x.csv");
         const std::string channel_count_csv = join_out_path(cfg.out_dir, "channel_count_xz.csv");
         const std::string gating_csv = join_out_path(cfg.out_dir, "gating_flux.csv");
         const std::string jump_csv = join_out_path(cfg.out_dir, "jump_msd.csv");
@@ -784,6 +795,7 @@ int main(int argc, char** argv) {
         dipole_z.write_csv(dipole_z_csv);
         dipole.write_csv(dipole_csv);
         coord.write_csv(coord_csv);
+        nacl_cluster.write_csv(nacl_cluster_csv);
         channel_count.write_csv(channel_count_csv);
         gating.write_csv(gating_csv);
         jump.write_csv(jump_csv);
@@ -807,6 +819,7 @@ int main(int argc, char** argv) {
         std::cout << "  wrote: " << dipole_csv << "\n";
         std::cout << "  wrote: " << dipole_z_csv << "\n";
         std::cout << "  wrote: " << coord_csv << "\n";
+        std::cout << "  wrote: " << nacl_cluster_csv << "\n";
         std::cout << "  wrote: " << channel_count_csv << "\n";
         std::cout << "  wrote: " << gating_csv << "\n";
         std::cout << "  wrote: " << jump_csv << "\n";
