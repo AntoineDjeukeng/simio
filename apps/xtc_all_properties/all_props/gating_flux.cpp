@@ -224,24 +224,27 @@ void GatingFluxAnalyzer::write_csv(const std::string& path) const {
 
     ofs << std::setprecision(12);
     ofs << "frame_idx,step,time_ps,"
-           "center_water_left,center_water_right,center_water_cum_right,"
-           "seam_water_left,seam_water_right,seam_water_cum_right,"
-           "center_na_left,center_na_right,center_na_cum_right,"
-           "seam_na_left,seam_na_right,seam_na_cum_right,"
-           "center_cl_left,center_cl_right,center_cl_cum_right,"
-           "seam_cl_left,seam_cl_right,seam_cl_cum_right\n";
+           "center_water_left,center_water_right,center_water_cum_left,center_water_cum_right,"
+           "seam_water_left,seam_water_right,seam_water_cum_left,seam_water_cum_right,"
+           "center_na_left,center_na_right,center_na_cum_left,center_na_cum_right,"
+           "seam_na_left,seam_na_right,seam_na_cum_left,seam_na_cum_right,"
+           "center_cl_left,center_cl_right,center_cl_cum_left,center_cl_cum_right,"
+           "seam_cl_left,seam_cl_right,seam_cl_cum_left,seam_cl_cum_right\n";
 
     for (const FrameRow& r : rows_) {
         ofs << r.frame_idx << "," << r.step << "," << r.time_ps << ","
             << r.center_frame.n_left_species[0] << "," << r.center_frame.n_right_species[0] << ","
-            << r.center_cum.n_right_species[0] << "," << r.seam_frame.n_left_species[0] << ","
-            << r.seam_frame.n_right_species[0] << "," << r.seam_cum.n_right_species[0] << ","
+            << r.center_cum.n_left_species[0] << "," << r.center_cum.n_right_species[0] << ","
+            << r.seam_frame.n_left_species[0] << "," << r.seam_frame.n_right_species[0] << ","
+            << r.seam_cum.n_left_species[0] << "," << r.seam_cum.n_right_species[0] << ","
             << r.center_frame.n_left_species[1] << "," << r.center_frame.n_right_species[1] << ","
-            << r.center_cum.n_right_species[1] << "," << r.seam_frame.n_left_species[1] << ","
-            << r.seam_frame.n_right_species[1] << "," << r.seam_cum.n_right_species[1] << ","
+            << r.center_cum.n_left_species[1] << "," << r.center_cum.n_right_species[1] << ","
+            << r.seam_frame.n_left_species[1] << "," << r.seam_frame.n_right_species[1] << ","
+            << r.seam_cum.n_left_species[1] << "," << r.seam_cum.n_right_species[1] << ","
             << r.center_frame.n_left_species[2] << "," << r.center_frame.n_right_species[2] << ","
-            << r.center_cum.n_right_species[2] << "," << r.seam_frame.n_left_species[2] << ","
-            << r.seam_frame.n_right_species[2] << "," << r.seam_cum.n_right_species[2] << "\n";
+            << r.center_cum.n_left_species[2] << "," << r.center_cum.n_right_species[2] << ","
+            << r.seam_frame.n_left_species[2] << "," << r.seam_frame.n_right_species[2] << ","
+            << r.seam_cum.n_left_species[2] << "," << r.seam_cum.n_right_species[2] << "\n";
     }
 }
 

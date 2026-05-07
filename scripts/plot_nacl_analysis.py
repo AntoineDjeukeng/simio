@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import csv
+import json
 import os
 
 
@@ -31,12 +32,49 @@ def savefig(fig, out):
     print(f"wrote {out}")
 
 
+def resolve_path(path, base_dir):
+    if os.path.isabs(path):
+        return path
+    direct = os.path.abspath(path)
+    if os.path.exists(direct):
+        return direct
+    return os.path.abspath(os.path.join(base_dir, path))
+
+
+def channel_edges_from_config(config_path):
+    with open(config_path) as f:
+        cfg = json.load(f)
+    config_dir = os.path.dirname(os.path.abspath(config_path))
+
+    topo_path = cfg.get("topology_json") or cfg.get("mini_topology_json") or cfg.get("setup_json")
+    if topo_path:
+        topo_abs = resolve_path(str(topo_path), config_dir)
+        with open(topo_abs) as f:
+            topo = json.load(f)
+        ch = topo.get("channel")
+        if isinstance(ch, dict) and "min" in ch and "max" in ch:
+            return float(ch["min"][0]), float(ch["max"][0])
+
+    if "xmin" in cfg and "xmax" in cfg:
+        return float(cfg["xmin"]), float(cfg["xmax"])
+
+    raise ValueError("No channel.min/max or xmin/xmax found in config.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--results-dir", default="results")
-    ap.add_argument("--x-left", type=float, default=8.048)
-    ap.add_argument("--x-right", type=float, default=13.828)
+    ap.add_argument("--config", default=None, help="Run config JSON; channel edges are read from topology_json")
+    ap.add_argument("--x-left", type=float, default=None)
+    ap.add_argument("--x-right", type=float, default=None)
     args = ap.parse_args()
+
+    if args.config:
+        x_left, x_right = channel_edges_from_config(args.config)
+    elif args.x_left is not None and args.x_right is not None:
+        x_left, x_right = args.x_left, args.x_right
+    else:
+        raise SystemExit("Provide --config, or both --x-left and --x-right.")
 
     import matplotlib
     matplotlib.use("Agg")
@@ -56,7 +94,7 @@ def main():
     ax.plot(x, col(density, "rho_water_mean"), label="SOL")
     ax.plot(x, col(density, "rho_na_mean"), label="NA")
     ax.plot(x, col(density, "rho_cl_mean"), label="CL")
-    add_channel_edges(ax, args.x_left, args.x_right)
+    add_channel_edges(ax, x_left, x_right)
     ax.set_xlabel("x (nm)")
     ax.set_ylabel("density")
     ax.set_title("Species density vs x")
@@ -68,7 +106,7 @@ def main():
     ax.plot(xa, col(assoc, "N_CIP_mean"), label="CIP")
     ax.plot(xa, col(assoc, "N_SSIP_mean"), label="SSIP")
     ax.plot(xa, col(assoc, "N_ASSOC_mean"), label="ASSOC")
-    add_channel_edges(ax, args.x_left, args.x_right)
+    add_channel_edges(ax, x_left, x_right)
     ax.set_xlabel("x (nm)")
     ax.set_ylabel("pair count / frame")
     ax.set_title("Na-Cl association vs x")
@@ -79,7 +117,7 @@ def main():
     ax.plot(xa, col(assoc, "f_CIP_mean"), label="f_CIP")
     ax.plot(xa, col(assoc, "f_SSIP_mean"), label="f_SSIP")
     ax.plot(xa, col(assoc, "f_bridge_mean"), label="f_bridge")
-    add_channel_edges(ax, args.x_left, args.x_right)
+    add_channel_edges(ax, x_left, x_right)
     ax.set_xlabel("x (nm)")
     ax.set_ylabel("fraction")
     ax.set_ylim(-0.05, 1.05)
@@ -92,7 +130,7 @@ def main():
     ax.plot(xa, col(assoc, "CN_ClOW_mean"), label="CN_ClOW")
     ax.plot(xa, col(assoc, "N_bridge_water_mean"), label="bridge water")
     ax.plot(xa, col(assoc, "N_bridged_pair_mean"), label="bridged pair")
-    add_channel_edges(ax, args.x_left, args.x_right)
+    add_channel_edges(ax, x_left, x_right)
     ax.set_xlabel("x (nm)")
     ax.set_ylabel("count / coordination")
     ax.set_title("Hydration and bridge metrics vs x")
@@ -103,7 +141,7 @@ def main():
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(xc, col(clusters, "nacl_cluster_count_mean"), label="cluster count")
     ax.plot(xc, col(clusters, "nacl_cluster_size_mean"), label="cluster size")
-    add_channel_edges(ax, args.x_left, args.x_right)
+    add_channel_edges(ax, x_left, x_right)
     ax.set_xlabel("x (nm)")
     ax.set_ylabel("mean")
     ax.set_title("Simple Na-Cl cluster graph vs x")

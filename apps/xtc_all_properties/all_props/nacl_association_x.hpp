@@ -50,7 +50,10 @@ class NaClAssociationXAnalyzer {
     RunningStatsAll f_ssip_{};
     RunningStatsAll f_bridge_{};
     RunningStatsAll cn_shared_{};
-    RunningStatsAll largest_cluster_size_{};
+    RunningStatsAll largest_ssip_component_size_{};
+    RunningStatsAll largest_cip_component_size_{};
+    RunningStatsNonEmpty ssip_mean_degree_{};
+    RunningStatsNonEmpty cip_mean_degree_{};
     RunningStatsNonEmpty cn_naow_{};
     RunningStatsNonEmpty cn_clow_{};
 };

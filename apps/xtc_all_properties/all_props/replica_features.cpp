@@ -67,7 +67,10 @@ const ClusterSpec kAssociationColumns[] = {
     {"f_SSIP", "f_SSIP_mean"},
     {"f_bridge", "f_bridge_mean"},
     {"CN_shared", "CN_shared_mean"},
-    {"largest_cluster_size", "largest_cluster_size_mean"},
+    {"largest_ssip_component_size", "largest_ssip_component_size_mean"},
+    {"largest_cip_component_size", "largest_cip_component_size_mean"},
+    {"ssip_mean_degree", "ssip_mean_degree_mean"},
+    {"cip_mean_degree", "cip_mean_degree_mean"},
 };
 
 std::vector<std::string> split_csv_line(const std::string& line) {

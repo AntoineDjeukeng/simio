@@ -166,7 +166,10 @@ NaClAssociationXAnalyzer::NaClAssociationXAnalyzer(const NaClAssociationXConfig&
     f_ssip_.init(cfg_.nx);
     f_bridge_.init(cfg_.nx);
     cn_shared_.init(cfg_.nx);
-    largest_cluster_size_.init(cfg_.nx);
+    largest_ssip_component_size_.init(cfg_.nx);
+    largest_cip_component_size_.init(cfg_.nx);
+    ssip_mean_degree_.init(cfg_.nx);
+    cip_mean_degree_.init(cfg_.nx);
     cn_naow_.init(cfg_.nx);
     cn_clow_.init(cfg_.nx);
 }
@@ -240,6 +243,10 @@ void NaClAssociationXAnalyzer::process_frame(const Topology& topo,
     std::vector<int> ion_nodes;
     std::vector<int> parent;
     std::vector<int> rank;
+    std::vector<int> parent_cip;
+    std::vector<int> rank_cip;
+    std::vector<int> degree_ssip;
+    std::vector<int> degree_cip;
     std::vector<int> node_for_mol(topo.mols.size(), -1);
 
     auto ensure_node = [&](int mid) {
@@ -249,6 +256,10 @@ void NaClAssociationXAnalyzer::process_frame(const Topology& topo,
         ion_nodes.push_back(mid);
         parent.push_back(node);
         rank.push_back(0);
+        parent_cip.push_back(node);
+        rank_cip.push_back(0);
+        degree_ssip.push_back(0);
+        degree_cip.push_back(0);
         return node;
     };
 
@@ -277,12 +288,16 @@ void NaClAssociationXAnalyzer::process_frame(const Topology& topo,
             const double d2_nacl = dot3(dr_nacl, dr_nacl);
             if (d2_nacl > r2_ssip) return;
 
-            ensure_node(na_mid);
-            ensure_node(cl_mid);
-            unite_roots(parent, rank, node_for_mol[static_cast<size_t>(na_mid)],
-                        node_for_mol[static_cast<size_t>(cl_mid)]);
+            const int na_node = ensure_node(na_mid);
+            const int cl_node = ensure_node(cl_mid);
+            unite_roots(parent, rank, na_node, cl_node);
+            degree_ssip[static_cast<size_t>(na_node)] += 1;
+            degree_ssip[static_cast<size_t>(cl_node)] += 1;
 
             if (d2_nacl <= r2_cip) {
+                unite_roots(parent_cip, rank_cip, na_node, cl_node);
+                degree_cip[static_cast<size_t>(na_node)] += 1;
+                degree_cip[static_cast<size_t>(cl_node)] += 1;
                 add_segment_fractional(frame_cip, fr.pbc, na.v[0], cl.v[0], dx_, cfg_.nx, 1.0);
             } else {
                 add_segment_fractional(frame_ssip, fr.pbc, na.v[0], cl.v[0], dx_, cfg_.nx, 1.0);
@@ -347,18 +362,47 @@ void NaClAssociationXAnalyzer::process_frame(const Topology& topo,
     }
 
     std::vector<std::vector<int>> components(parent.size());
+    std::vector<std::vector<int>> components_cip(parent_cip.size());
     for (int i = 0; i < static_cast<int>(parent.size()); ++i) {
         const int r = find_root(parent, i);
         components[static_cast<size_t>(r)].push_back(i);
+        const int rc = find_root(parent_cip, i);
+        components_cip[static_cast<size_t>(rc)].push_back(i);
     }
-    std::vector<double> frame_largest_cluster_size(static_cast<size_t>(cfg_.nx), 0.0);
+    std::vector<double> frame_largest_ssip_component_size(static_cast<size_t>(cfg_.nx), 0.0);
+    std::vector<double> frame_largest_cip_component_size(static_cast<size_t>(cfg_.nx), 0.0);
     for (const std::vector<int>& comp : components) {
         if (comp.size() < 2) continue;
         std::vector<Vec3d> points;
         points.reserve(comp.size());
         for (int node : comp) points.push_back(pos[static_cast<size_t>(ion_nodes[static_cast<size_t>(node)])]);
-        set_cluster_span_max(frame_largest_cluster_size, fr.pbc, points, dx_, cfg_.nx,
+        set_cluster_span_max(frame_largest_ssip_component_size, fr.pbc, points, dx_, cfg_.nx,
                              static_cast<double>(comp.size()));
+    }
+    for (const std::vector<int>& comp : components_cip) {
+        if (comp.size() < 2) continue;
+        std::vector<Vec3d> points;
+        points.reserve(comp.size());
+        for (int node : comp) points.push_back(pos[static_cast<size_t>(ion_nodes[static_cast<size_t>(node)])]);
+        set_cluster_span_max(frame_largest_cip_component_size, fr.pbc, points, dx_, cfg_.nx,
+                             static_cast<double>(comp.size()));
+    }
+    std::vector<double> ssip_degree_sum(static_cast<size_t>(cfg_.nx), 0.0);
+    std::vector<double> cip_degree_sum(static_cast<size_t>(cfg_.nx), 0.0);
+    std::vector<int64_t> ssip_degree_n(static_cast<size_t>(cfg_.nx), 0);
+    std::vector<int64_t> cip_degree_n(static_cast<size_t>(cfg_.nx), 0);
+    for (size_t node = 0; node < ion_nodes.size(); ++node) {
+        const Vec3d& r = pos[static_cast<size_t>(ion_nodes[node])];
+        const int ix = xbin_from_x(r.v[0], dx_, cfg_.nx);
+        if (ix < 0) continue;
+        if (degree_ssip[node] > 0) {
+            ssip_degree_sum[static_cast<size_t>(ix)] += static_cast<double>(degree_ssip[node]);
+            ssip_degree_n[static_cast<size_t>(ix)] += 1;
+        }
+        if (degree_cip[node] > 0) {
+            cip_degree_sum[static_cast<size_t>(ix)] += static_cast<double>(degree_cip[node]);
+            cip_degree_n[static_cast<size_t>(ix)] += 1;
+        }
     }
 
     for (int i = 0; i < cfg_.nx; ++i) {
@@ -372,7 +416,14 @@ void NaClAssociationXAnalyzer::process_frame(const Topology& topo,
         f_ssip_.add(i, frame_assoc[b] > 0.0 ? frame_ssip[b] / frame_assoc[b] : 0.0);
         f_bridge_.add(i, frame_ssip[b] > 0.0 ? frame_bridged_pair_for_fraction[b] / frame_ssip[b] : 0.0);
         cn_shared_.add(i, frame_ssip[b] > 0.0 ? frame_shared_waters_for_ssip[b] / frame_ssip[b] : 0.0);
-        largest_cluster_size_.add(i, frame_largest_cluster_size[b]);
+        largest_ssip_component_size_.add(i, frame_largest_ssip_component_size[b]);
+        largest_cip_component_size_.add(i, frame_largest_cip_component_size[b]);
+        if (ssip_degree_n[b] > 0) {
+            ssip_mean_degree_.add(i, ssip_degree_sum[b] / static_cast<double>(ssip_degree_n[b]));
+        }
+        if (cip_degree_n[b] > 0) {
+            cip_mean_degree_.add(i, cip_degree_sum[b] / static_cast<double>(cip_degree_n[b]));
+        }
         if (cn_na_n[b] > 0) cn_naow_.add(i, cn_na_sum[b] / static_cast<double>(cn_na_n[b]));
         if (cn_cl_n[b] > 0) cn_clow_.add(i, cn_cl_sum[b] / static_cast<double>(cn_cl_n[b]));
     }
@@ -391,7 +442,9 @@ void NaClAssociationXAnalyzer::write_csv(const std::string& path) const {
            "N_bridge_water_mean,N_bridge_water_sem,N_bridged_pair_mean,N_bridged_pair_sem,"
            "f_CIP_mean,f_CIP_sem,f_SSIP_mean,f_SSIP_sem,f_bridge_mean,f_bridge_sem,"
            "CN_shared_mean,CN_shared_sem,"
-           "largest_cluster_size_mean,largest_cluster_size_sem\n";
+           "largest_ssip_component_size_mean,largest_ssip_component_size_sem,"
+           "largest_cip_component_size_mean,largest_cip_component_size_sem,"
+           "ssip_mean_degree_mean,ssip_mean_degree_sem,cip_mean_degree_mean,cip_mean_degree_sem\n";
     for (int i = 0; i < cfg_.nx; ++i) {
         const double x_center = (static_cast<double>(i) + 0.5) * dx_;
         ofs << x_center << "," << cip_.mean(i, nframes_) << "," << cip_.sem(i, nframes_) << ","
@@ -405,7 +458,12 @@ void NaClAssociationXAnalyzer::write_csv(const std::string& path) const {
             << f_ssip_.mean(i, nframes_) << "," << f_ssip_.sem(i, nframes_) << ","
             << f_bridge_.mean(i, nframes_) << "," << f_bridge_.sem(i, nframes_) << ","
             << cn_shared_.mean(i, nframes_) << "," << cn_shared_.sem(i, nframes_) << ","
-            << largest_cluster_size_.mean(i, nframes_) << "," << largest_cluster_size_.sem(i, nframes_)
+            << largest_ssip_component_size_.mean(i, nframes_) << ","
+            << largest_ssip_component_size_.sem(i, nframes_) << ","
+            << largest_cip_component_size_.mean(i, nframes_) << ","
+            << largest_cip_component_size_.sem(i, nframes_) << ","
+            << ssip_mean_degree_.mean(i) << "," << ssip_mean_degree_.sem(i) << ","
+            << cip_mean_degree_.mean(i) << "," << cip_mean_degree_.sem(i)
             << "\n";
     }
 }
