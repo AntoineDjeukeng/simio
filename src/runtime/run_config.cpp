@@ -186,6 +186,7 @@ struct MiniTopologyData {
   std::array<double, 3> channel_min{0.0, 0.0, 0.0};
   std::array<double, 3> channel_max{0.0, 0.0, 0.0};
   bool has_channel = false;
+  int natoms_filtered = 0;
   std::vector<TypeEntry> types;
 };
 
@@ -207,6 +208,10 @@ MiniTopologyData parse_mini_topology_json(const std::string& path) {
         out.has_channel = true;
       }
     }
+  }
+
+  if (auto natoms_v = json_find_number_token(text, "natoms_filtered")) {
+    out.natoms_filtered = parse_int_text(*natoms_v, "natoms_filtered");
   }
 
   const std::regex obj_re("\\{[^\\{\\}]*\\}");
@@ -243,6 +248,25 @@ void apply_topology_counts_from_mini_json(RunConfig& c) {
   bool has_na = false;
   bool has_cl = false;
   std::vector<RunConfig::MolBlock> blocks;
+
+  bool preserve_unmapped_blocks = true;
+  if (topo.natoms_filtered > 0) {
+    int mapped_atoms = 0;
+    for (const auto& kv : topo.types) {
+      const std::string& name = kv.name;
+      int natoms_per_mol = kv.atoms_per_molecule;
+      if (water_set.count(name) > 0) {
+        if (natoms_per_mol == 0) natoms_per_mol = 3;
+        mapped_atoms += kv.molecules * natoms_per_mol;
+      } else if (na_set.count(name) > 0 || cl_set.count(name) > 0) {
+        if (natoms_per_mol == 0) natoms_per_mol = 1;
+        mapped_atoms += kv.molecules * natoms_per_mol;
+      }
+    }
+    if (mapped_atoms == topo.natoms_filtered) {
+      preserve_unmapped_blocks = false;
+    }
+  }
 
   for (const auto& kv : topo.types) {
     const std::string& name = kv.name;
@@ -283,6 +307,9 @@ void apply_topology_counts_from_mini_json(RunConfig& c) {
                                  ", but this driver requires 1");
       }
     } else {
+      if (!preserve_unmapped_blocks) {
+        continue;
+      }
       if (natoms_per_mol <= 0) {
         throw std::runtime_error(
             "topology_json has unmapped molecule '" + name +
