@@ -1,22 +1,32 @@
 {
   "xtc_path": "__XTC__",
 
-  "topology_json": "topo_setup.json",
+  "topology_json": "__TOPOLOGY_JSON__",
   "use_channel_bounds_from_topology": true,
 
-  "max_frames": 2,
-  "frame_begin": 2,
+  "water_names": "SOL,WAT,HOH",
+  "na_names": "NA,NA+,Na,Na+,na,na+",
+  "cl_names": "CL,CL-,Cl,Cl-,cl,cl-",
+
+  "max_frames": 60000000,
+  "frame_begin": 5000,
   "frame_end": -1,
 
-  "threads": 4,
+  "threads": 24,
   "grid_cell_nm": 0.5,
 
   "nx": 500,
   "nz": 300,
 
-  "r_cw": 0.35,
+  "r_cw": 0.32,
   "r_aw": 0.38,
   "r_oo": 0.35,
+
+  "r_nacl": 0.59,
+  "r_cip": 0.35,
+  "r_ssip": 0.59,
+  "r_naow": 0.32,
+  "r_clow": 0.38,
 
   "gating_selection": "all",
   "jump_keep_frames": 50,
