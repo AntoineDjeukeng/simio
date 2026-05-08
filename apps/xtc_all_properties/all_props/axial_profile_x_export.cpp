@@ -4,6 +4,7 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <sstream>
 #include <stdexcept>
 #include <vector>
 
@@ -58,8 +59,15 @@ struct AxialProfileRow {
 
 void require_same_x(double ref, double got, double tol, const char* label, int i) {
     if (std::abs(ref - got) > tol) {
-        throw std::runtime_error(std::string("axial_profile_x: x grid mismatch for ") + label +
-                                 " at bin " + std::to_string(i));
+        std::ostringstream oss;
+        oss << std::setprecision(17)
+            << "axial_profile_x: x grid mismatch for " << label
+            << " at bin " << i
+            << " ref=" << ref
+            << " got=" << got
+            << " diff=" << (got - ref)
+            << " tol=" << tol;
+        throw std::runtime_error(oss.str());
     }
 }
 

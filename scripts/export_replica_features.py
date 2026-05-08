@@ -317,7 +317,7 @@ def add_coord_features(out: Dict[str, object], results_dir: str, x_left: float, 
 def add_nacl_cluster_features(out: Dict[str, object], results_dir: str, x_left: float,
                               x_right: float, mouth_width_nm: float, box_lx_nm: float,
                               reservoir_fraction: float) -> None:
-    add_profile_region_features(out, os.path.join(results_dir, "nacl_cluster_x.csv"), "NACL",
+    add_profile_region_features(out, os.path.join(results_dir, "coord_x.csv"), "NACL",
                                 NACL_CLUSTER_COLUMNS, x_left, x_right, mouth_width_nm,
                                 box_lx_nm, reservoir_fraction)
 

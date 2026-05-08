@@ -18,9 +18,11 @@ struct CoordXConfig {
     double zmin = 0.901;
     double zmax = 1.801;
     int nx = 100;
+    int nthreads = 1;
     double r_cw = 0.35;  // Na-O and Na<-W cutoff
     double r_aw = 0.38;  // Cl-O and Cl<-W cutoff
     double r_oo = 0.35;  // O-O cutoff
+    double r_nacl = 0.59;  // Na-Cl cluster contact cutoff
 };
 
 // CoordXAnalyzer computes coordination and HB observables vs x.
@@ -68,6 +70,11 @@ class CoordXAnalyzer {
     std::vector<double> x_centers_rel_;
     std::vector<double> x_centers_;
     std::array<RunningStatsNonEmpty, MetricN> stats_{};
+    RunningStatsAll nacl_cluster_count_{};
+    RunningStatsAll nacl_ion_count_{};
+    RunningStatsAll nacl_na_count_{};
+    RunningStatsAll nacl_cl_count_{};
+    RunningStatsNonEmpty nacl_cluster_size_{};
 };
 
 }  // namespace simio::analysis

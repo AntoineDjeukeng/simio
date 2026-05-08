@@ -27,7 +27,6 @@ CPP_SRCS := \
   apps/xtc_all_properties/all_props/dipole_x.cpp \
   apps/xtc_all_properties/all_props/dipole_z_in_x_channel.cpp \
   apps/xtc_all_properties/all_props/coord_x.cpp \
-  apps/xtc_all_properties/all_props/nacl_cluster_x.cpp \
   apps/xtc_all_properties/all_props/gating_flux.cpp \
   apps/xtc_all_properties/all_props/jump_msd.cpp
 
