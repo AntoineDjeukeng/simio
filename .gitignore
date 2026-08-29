@@ -75,3 +75,4 @@ simio_single_run_report_sum.ipynb
 xtc_min*
 *.json
 
+scripts/__pycache__/

@@ -15,6 +15,7 @@ CHARGES="negative neutral positive"
 FIELDS="FIELD_00 FIELD_01 FIELD_02 FIELD_03"
 REP_START=1
 REP_END=20
+THREADS=1
 
 cd "$L_DIR" || exit 1
 
@@ -61,9 +62,10 @@ for charge in $CHARGES; do
 
             mkdir -p "$outdir"
 
-            sed \
+            sed -E \
               -e "s|__XTC__|$xtc|g" \
-              -e "s|__TOPOLOGY_JSON__|$topo|g" \
+              -e "s|\"topo_setup.json\"|\"$topo\"|g" \
+              -e "s|\"threads\"[[:space:]]*:[[:space:]]*[0-9]+|\"threads\": $THREADS|g" \
               -e "s|__OUTDIR__|$outdir|g" \
               "$BASE_CONFIG" > "$cfg"
 

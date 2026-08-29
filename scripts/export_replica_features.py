@@ -16,8 +16,47 @@ SPECIES = [
 ]
 
 PMF_IONS = ["NA", "CL"]
-PMF_COLUMNS = ["deltaF_center", "barrier_mean_center", "barrier_asym_center"]
-DEFAULT_PMF_CSV = "/home/antoine/CDI/plots/New_pmf_60/pmf_summary_compact.csv"
+PMF_COLUMNS = [
+    ("deltaF_center", "deltaF_center"),
+    ("barrier_mean", "__entrance_mean_y"),
+    ("barrier_asym", "__entrance_asym_y"),
+    ("barrier_left", "left_max_y"),
+    ("barrier_right", "right_max_y"),
+]
+PMF_FULL_HEADER = [
+    "ion",
+    "H",
+    "L",
+    "variant",
+    "q",
+    "state",
+    "input_file",
+    "r",
+    "w",
+    "shift",
+    "min_extra",
+    "left_max_x",
+    "left_max_y",
+    "left_min_x",
+    "left_min_y",
+    "right_max_x",
+    "right_max_y",
+    "right_min_x",
+    "right_min_y",
+    "avg_center_xmin",
+    "avg_center_xmax",
+    "deltaF_center",
+    "barrier_left_local",
+    "barrier_right_local",
+    "barrier_left_center",
+    "barrier_right_center",
+    "minima_depth_difference",
+    "barrier_mean_center",
+    "barrier_asym_center",
+    "barrier_mean_local",
+    "barrier_asym_local",
+]
+DEFAULT_PMF_CSV = "/home/antoine/CDI/plots/New_pmf_60/pmf_summary_full.csv"
 
 FIELD_TO_E = {
     "FIELD_00": 0.0,
@@ -60,6 +99,19 @@ UPSERT_KEYS = ["H", "L", "surface_charge_q", "charge", "field", "replica"]
 def read_csv_dicts(path: str) -> List[Dict[str, str]]:
     with open(path, newline="") as f:
         return list(csv.DictReader(f))
+
+
+def read_pmf_dicts(path: str) -> List[Dict[str, str]]:
+    with open(path, newline="") as f:
+        rows = list(csv.reader(f))
+    if not rows:
+        return []
+
+    first = [x.strip() for x in rows[0]]
+    if first and first[0].lower() == "ion":
+        return [dict(zip(first, row)) for row in rows[1:]]
+
+    return [dict(zip(PMF_FULL_HEADER, row)) for row in rows]
 
 
 def to_float(v: str) -> float:
@@ -258,29 +310,40 @@ def add_density_features(out: Dict[str, object], results_dir: str, x_left: float
         return
     rows = read_csv_dicts(path)
     buckets: Dict[Tuple[str, str], List[float]] = {}
+    x_center = 0.5 * (x_left + x_right)
     for row in rows:
         x = to_float(row.get("x_center_nm", ""))
         region = region_for_x(x, x_left, x_right, mouth_width_nm, box_lx_nm, reservoir_fraction)
-        if region is None:
-            continue
         for label, internal in SPECIES:
             col = f"rho_{internal}_mean"
-            if col in row:
-                buckets.setdefault((label, region), []).append(to_float(row[col]))
+            if col not in row:
+                continue
+            value = to_float(row[col])
+            if region is not None:
+                buckets.setdefault((label, region), []).append(value)
+            if x_left <= x < x_center:
+                buckets.setdefault((label, "center_left"), []).append(value)
+            elif x_center <= x < x_right:
+                buckets.setdefault((label, "center_right"), []).append(value)
 
     for label, _ in SPECIES:
         for region in REGIONS:
             out[f"{label}_{region}_mean"] = mean(buckets.get((label, region), []))
+        out[f"{label}_center_left_mean"] = mean(buckets.get((label, "center_left"), []))
+        out[f"{label}_center_right_mean"] = mean(buckets.get((label, "center_right"), []))
 
         res_left = out.get(f"{label}_res_left_mean", math.nan)
         res_right = out.get(f"{label}_res_right_mean", math.nan)
         mouth_left = out.get(f"{label}_mouth_left_mean", math.nan)
         mouth_right = out.get(f"{label}_mouth_right_mean", math.nan)
+        center_left = out.get(f"{label}_center_left_mean", math.nan)
+        center_right = out.get(f"{label}_center_right_mean", math.nan)
         center = out.get(f"{label}_center_mean", math.nan)
         res_avg = (float(res_left) + float(res_right)) / 2.0
 
         out[f"{label}_res_asym"] = float(res_right) - float(res_left)
         out[f"{label}_mouth_asym"] = float(mouth_right) - float(mouth_left)
+        out[f"{label}_center_asym"] = float(center_right) - float(center_left)
         out[f"{label}_center_enrichment"] = float(center) - res_avg
 
 
@@ -342,8 +405,24 @@ def pmf_state_from_charge(value: object) -> str:
 
 def init_pmf_features(out: Dict[str, object]) -> None:
     for ion in PMF_IONS:
-        for col in PMF_COLUMNS:
-            out[f"PMF_{ion}_{col}"] = math.nan
+        for export_col, _ in PMF_COLUMNS:
+            out[f"PMF_{ion}_{export_col}"] = math.nan
+
+
+def pmf_export_value(row: Dict[str, str], source_col: str) -> float:
+    if source_col == "__entrance_mean_y":
+        left = to_float(row.get("left_max_y", ""))
+        right = to_float(row.get("right_max_y", ""))
+        if math.isnan(left) or math.isnan(right):
+            return math.nan
+        return 0.5 * (left + right)
+    if source_col == "__entrance_asym_y":
+        left = to_float(row.get("left_max_y", ""))
+        right = to_float(row.get("right_max_y", ""))
+        if math.isnan(left) or math.isnan(right):
+            return math.nan
+        return right - left
+    return to_float(row.get(source_col, ""))
 
 
 def add_pmf_features(out: Dict[str, object], pmf_csv: str) -> None:
@@ -351,7 +430,7 @@ def add_pmf_features(out: Dict[str, object], pmf_csv: str) -> None:
     if not pmf_csv or not os.path.exists(pmf_csv):
         return
 
-    rows = read_csv_dicts(pmf_csv)
+    rows = read_pmf_dicts(pmf_csv)
     if not rows:
         return
 
@@ -380,8 +459,8 @@ def add_pmf_features(out: Dict[str, object], pmf_csv: str) -> None:
 
         if match is None:
             continue
-        for col in PMF_COLUMNS:
-            out[f"PMF_{ion}_{col}"] = to_float(match.get(col, ""))
+        for export_col, source_col in PMF_COLUMNS:
+            out[f"PMF_{ion}_{export_col}"] = pmf_export_value(match, source_col)
 
 
 def cumulative(values: Sequence[float]) -> List[float]:
@@ -512,12 +591,16 @@ def ordered_fields(row: Dict[str, object]) -> List[str]:
     ]
 
     for ion in PMF_IONS:
-        for col in PMF_COLUMNS:
-            fields.append(f"PMF_{ion}_{col}")
+        for export_col, _ in PMF_COLUMNS:
+            fields.append(f"PMF_{ion}_{export_col}")
 
     for label, _ in SPECIES:
         for region in REGIONS:
             fields.append(f"{label}_{region}_mean")
+        fields += [
+            f"{label}_center_left_mean",
+            f"{label}_center_right_mean",
+        ]
 
     for label, _ in SPECIES:
         fields += [
@@ -531,6 +614,7 @@ def ordered_fields(row: Dict[str, object]) -> List[str]:
         fields += [
             f"{label}_res_asym",
             f"{label}_mouth_asym",
+            f"{label}_center_asym",
             f"{label}_center_enrichment",
         ]
 
@@ -562,11 +646,12 @@ def upsert_key(row: Dict[str, object]) -> Optional[Tuple[str, ...]]:
     return values
 
 
-def write_or_upsert_row(path: str, row: Dict[str, object]) -> str:
+def write_or_upsert_row(path: str, row: Dict[str, object]) -> Tuple[str, int]:
     fields = ordered_fields(row)
     clean_row = clean_output_row(fields, row)
     key = upsert_key(clean_row)
     action = "written"
+    line_number = 2
 
     rows: List[Dict[str, str]] = []
     if os.path.exists(path) and os.path.getsize(path) > 0:
@@ -577,31 +662,35 @@ def write_or_upsert_row(path: str, row: Dict[str, object]) -> str:
     if rows and key is not None:
         replaced = False
         new_rows: List[Dict[str, object]] = []
-        for old in rows:
+        for idx, old in enumerate(rows):
             old_key = upsert_key(old)
             if old_key == key:
                 if not replaced:
                     new_rows.append(clean_row)
                     replaced = True
                     action = "updated"
+                    line_number = idx + 2
                 continue
             new_rows.append(clean_output_row(fields, old))
         if not replaced:
             new_rows.append(clean_row)
             action = "appended"
+            line_number = len(new_rows) + 1
         rows = new_rows
     elif rows:
         rows = [clean_output_row(fields, old) for old in rows]
         rows.append(clean_row)
         action = "appended"
+        line_number = len(rows) + 1
     else:
         rows = [clean_row]
+        line_number = 2
 
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore", restval="NaN")
         w.writeheader()
         w.writerows(rows)
-    return action
+    return action, line_number
 
 
 def main() -> int:
@@ -668,8 +757,8 @@ def main() -> int:
                               geom["box_lx_nm"], args.reservoir_fraction)
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
-    action = write_or_upsert_row(args.out, row)
-    print(f"{action}: {args.out}")
+    action, line_number = write_or_upsert_row(args.out, row)
+    print(f"{action} line {line_number}: {args.out}")
     return 0
 
 

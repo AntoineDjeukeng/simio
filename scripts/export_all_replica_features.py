@@ -29,7 +29,7 @@ def l_dirs_for(root: Path, h: str, length: str) -> List[Path]:
 
 def discover_replica_dirs(root: Path, hs: Iterable[str], ls: Iterable[str],
                           charges: Iterable[str], fields: Iterable[str],
-                          reps: Iterable[str]) -> List[Path]:
+                          reps: Iterable[str], run_dir: str) -> List[Path]:
     out: List[Path] = []
     for h in hs:
         for length in ls:
@@ -37,7 +37,7 @@ def discover_replica_dirs(root: Path, hs: Iterable[str], ls: Iterable[str],
                 for charge in charges:
                     for field in fields:
                         for rep in reps:
-                            rep_dir = l_dir / charge / field / "runs" / f"rep_{rep}"
+                            rep_dir = l_dir / charge / field / run_dir / f"rep_{rep}"
                             if rep_dir.is_dir():
                                 out.append(rep_dir)
     return out
@@ -117,13 +117,15 @@ def main() -> int:
         description="Export/upsert compact feature rows for many FLOW_CDI replica result directories."
     )
     ap.add_argument("--root", default="/home/antoine/FLOW_CDI",
-                    help="Root containing single_H_*/L_*/charge/FIELD_*/runs/rep_*")
+                    help="Root containing single_H_*/L_*/charge/FIELD_*/RUN_DIR/rep_*")
     ap.add_argument("--out", required=True, help="One master compact CSV to create/update")
     ap.add_argument("--H", dest="hs", default="7,9")
     ap.add_argument("--L", dest="ls", default="1,2,6")
     ap.add_argument("--charges", default="negative,neutral,positive")
     ap.add_argument("--fields", default="FIELD_00,FIELD_01,FIELD_02,FIELD_03")
     ap.add_argument("--reps", default="01,02,03,04,05,06,07,08,09,10,11,12,13,14,15,16,17,18,19,20")
+    ap.add_argument("--run-dir", default="new_runs",
+                    help="Replica output directory name under each FIELD_* directory. Use 'runs' for old outputs.")
     ap.add_argument("--mouth-width-nm", type=float, default=0.62)
     ap.add_argument("--reservoir-fraction", type=float, default=0.12)
     ap.add_argument("--slope-tail-ns", type=float, default=45.0)
@@ -133,7 +135,7 @@ def main() -> int:
                     help="Stop at the first failed replica instead of skipping it.")
     ap.add_argument("--validate-gating", action="store_true",
                     help="Check reported cumulative gating columns against sums of per-frame counts.")
-    ap.add_argument("--pmf-csv", default="/home/antoine/CDI/plots/New_pmf_60/pmf_summary_compact.csv",
+    ap.add_argument("--pmf-csv", default="/home/antoine/CDI/plots/New_pmf_60/pmf_summary_full.csv",
                     help="Optional PMF summary CSV passed to export_replica_features.py.")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
@@ -153,6 +155,7 @@ def main() -> int:
         parse_csv_list(args.charges),
         parse_csv_list(args.fields),
         parse_csv_list(args.reps),
+        args.run_dir,
     )
 
     print(f"found {len(rep_dirs)} replica directories")
