@@ -48,6 +48,8 @@ struct RunConfig {
   double bound_layer_nm{0.30};
 
   // topology extras
+  std::string gro_path;
+  std::string ion_insertion_report;
   std::string topology_json;
   bool use_channel_bounds_from_topology{false};
   std::vector<std::string> water_names{"SOL", "WAT", "HOH"};

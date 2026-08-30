@@ -398,6 +398,12 @@ RunConfig RunConfig::from_json_file(const std::string& json_path) {
   const auto jump_keep_v = json_find_number_any(text, {"jump_keep_frames"});
   const auto bound_layer_v = json_find_number_any(text, {"bound_layer_nm", "bound_delta_nm", "adsorption_delta_nm"});
 
+  if (auto v = json_find_string_any(text, {"gro_path", "final_gro", "structure_gro"})) {
+    c.gro_path = *v;
+  }
+  if (auto v = json_find_string_any(text, {"ion_insertion_report", "ion_insertion_report_json"})) {
+    c.ion_insertion_report = *v;
+  }
   if (auto v = json_find_string_any(text, {"topology_json", "mini_topology_json", "setup_json"})) {
     c.topology_json = *v;
   }
@@ -460,7 +466,7 @@ void RunConfig::validate_or_die() const {
   if (xtc_path.empty()) die("xtc_path is empty");
   if (frame_begin < 0) die("frame_begin must be >= 0");
   if (frame_end != -1 && frame_end <= frame_begin) die("frame_end must be -1 or > frame_begin");
-  if (max_frames <= 0) die("max_frames must be > 0");
+  if (max_frames == 0 || max_frames < -1) die("max_frames must be -1 or > 0");
   if (nthreads <= 0) die("nthreads must be > 0");
   if (grid_cell_nm <= 0.0) die("grid_cell_nm must be > 0");
   if (nsol < 0 || nna < 0 || ncl < 0) die("nsol/nna/ncl must be >= 0");
@@ -471,6 +477,9 @@ void RunConfig::validate_or_die() const {
   if (jump_keep_frames <= 0) die("jump_keep_frames must be > 0");
   if (bound_layer_nm < 0.0) die("bound_layer_nm must be >= 0");
   if (out_dir.empty()) die("out_dir must be non-empty");
+  if (gro_path.empty() != ion_insertion_report.empty()) {
+    die("gro_path and ion_insertion_report must be provided together");
+  }
   if (has_mol_blocks) {
     for (size_t i = 0; i < mol_blocks.size(); ++i) {
       const auto& b = mol_blocks[i];

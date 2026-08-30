@@ -13,6 +13,8 @@ LDLIBS += -lstdc++fs
 endif
 
 CPP_SRCS := \
+  apps/middle_reservoir/reactor_setup.cpp \
+  apps/middle_reservoir/middle_reservoir_monitor.cpp \
   apps/xtc_all_properties/main.cpp \
 	src/runtime/run_config.cpp \
 	src/analysis/intrinsics/x_grid_cache.cpp \
@@ -44,11 +46,19 @@ MINI_TOPO_BIN := bin/simio_mini_gro_topology
 SCAN_XTC_SRC := apps/scan/scan_xtc.cpp
 SCAN_XTC_OBJ := build/apps/scan/scan_xtc.o
 SCAN_XTC_BIN := bin/simio_scan_xtc
+MIDDLE_RESERVOIR_SRCS := \
+  apps/middle_reservoir/main.cpp \
+  apps/middle_reservoir/reactor_setup.cpp \
+  apps/middle_reservoir/middle_reservoir_monitor.cpp
+MIDDLE_RESERVOIR_OBJS := $(addprefix build/,$(MIDDLE_RESERVOIR_SRCS:.cpp=.o))
+MIDDLE_RESERVOIR_BIN := bin/simio_middle_reservoir
 
-.PHONY: all clean scan_xtc
-all: $(OUT) $(MINI_TOPO_BIN) $(SCAN_XTC_BIN)
+.PHONY: all clean scan_xtc middle_reservoir
+all: $(OUT) $(MINI_TOPO_BIN) $(SCAN_XTC_BIN) $(MIDDLE_RESERVOIR_BIN)
 
 scan_xtc: $(SCAN_XTC_BIN)
+
+middle_reservoir: $(MIDDLE_RESERVOIR_BIN)
 
 $(OUT): $(OBJS)
 	@mkdir -p $(dir $@)
@@ -61,6 +71,10 @@ $(MINI_TOPO_BIN): $(MINI_TOPO_SRC)
 $(SCAN_XTC_BIN): $(SCAN_XTC_OBJ) $(C_OBJS)
 	@mkdir -p $(dir $@)
 	$(CXX) $(LDFLAGS) -o $@ $(SCAN_XTC_OBJ) $(C_OBJS) $(LDLIBS)
+
+$(MIDDLE_RESERVOIR_BIN): $(MIDDLE_RESERVOIR_OBJS) $(C_OBJS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(LDFLAGS) -o $@ $(MIDDLE_RESERVOIR_OBJS) $(C_OBJS) $(LDLIBS)
 
 build/%.o: %.cpp
 	@mkdir -p $(dir $@)

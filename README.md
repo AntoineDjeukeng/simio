@@ -71,21 +71,89 @@ Set the topology summary path in config JSON as:
 "topology_json": "setup_from_gro.json"
 ```
 
-### Single-run notebook report
+### Report-driven middle-reservoir monitoring
 
-After generating CSV outputs in a run directory (example: `runs/rep_01`), render the
-single-run report directly into that run folder:
+For reactor trajectories that contain only mobile water and ions, use the focused
+middle-reservoir tool. It takes the filtered XTC, the corresponding final GRO
+(including walls), and the `ion_insertion_report.json` produced during ion insertion:
+
+```bash
+make middle_reservoir
+./bin/simio_middle_reservoir \
+  data/reactor_h7l6_neu_h9l1_neg_01.xtc \
+  data/reactor_h7l6_neu_h9l1_neg_01.gro \
+  data/ion_insertion_report.json \
+  runs/middle_reservoir \
+  100 0 -1
+```
+
+Optional positional arguments are `max_frames`, inclusive `frame_begin`, and exclusive
+`frame_end`. The defaults are `100`, `0`, and `-1` (no explicit end). Set `max_frames=-1` to process all selected frames.
+
+The setup is intentionally split between two authoritative inputs:
+
+- `ion_insertion_report.json` supplies cleanup values, surface charge, ion totals, per-reservoir water counts, ion allocations, expected final counts, and wall atom counts.
+- The final GRO supplies exact molecule ordering, box dimensions, and wall coordinates.
+- The XTC may contain only the mobile atoms. Wall atoms from the GRO are not expected in the XTC.
+
+The tool finds the two separated wall components along x. The middle reservoir is the
+non-periodic gap between them. Its left gate is placed at the maximum x of the first
+wall and its right gate at the minimum x of the second wall. Relative to the middle reservoir, the left gate is `x_rel=0` and the right gate is
+`x_rel=middle_length`. Each gate gets its own z
+aperture from that wall's non-`CAG` surface type (for example `CAR` or `CAN`). Setup
+fails before reading the trajectory if report counts, GRO counts, or geometry disagree.
+
+Outputs:
+
+- `<out_dir>/middle_reservoir.csv`: per-frame water/Na/Cl occupancy plus entered,
+  exited, and cumulative net-in counts at both gates.
+- `<out_dir>/middle_reservoir_setup.json`: the inferred gate positions, z apertures,
+  wall types, absolute and reservoir-relative coordinates, box, and parsed report summary.
+
+
+The middle-reservoir monitor can also run inside the all-properties driver. Add
+`gro_path` and `ion_insertion_report` to the same analysis config:
+
+```json
+{
+  "xtc_path": "data/system.xtc",
+  "gro_path": "data/system.gro",
+  "ion_insertion_report": "data/ion_insertion_report.json",
+  "max_frames": -1,
+  "frame_begin": 0,
+  "frame_end": -1,
+  "threads": 8,
+  "out_dir": "rep_01"
+}
+```
+
+Then one trajectory pass produces `density_x.csv`, `coord_x.csv` (coordination and
+hydrogen-bond observables), `middle_reservoir.csv`, and the remaining property files:
 
 ```bash
 ./bin/simio_xtc_all_properties config.json
-python scripts/render_single_run_report.py runs/rep_01
+```
+### Single-run notebook report
+
+Every successful `simio_xtc_all_properties` run copies the current parameterized
+notebook template directly into its output directory:
+
+```bash
+./bin/simio_xtc_all_properties config.json
+# Creates <out_dir>/simio_single_run_report.ipynb
 ```
 
-Generated artifacts:
-- `runs/rep_01/report/figures/*.png`
-- `runs/rep_01/report/summary_table.csv`
-- `runs/rep_01/report/simio_single_run_report.ipynb`
-- `runs/rep_01/report/simio_single_run_report.html`
+Open that notebook and run its cells from the run directory to inspect the generated
+CSVs. It derives all paths from `Path.cwd()` and does not require repo-relative data
+paths. Set `SIMIO_REPORT_NOTEBOOK=/path/to/template.ipynb` only when running an
+installed binary away from the repository.
+
+To execute the notebook non-interactively and additionally produce figures, tables,
+and HTML under `<out_dir>/report/`, run:
+
+```bash
+python scripts/render_single_run_report.py <out_dir>
+```
 
 The analysis config should reference topology summary JSON as:
 
@@ -159,7 +227,7 @@ When `topology_json` is set:
 
 Arguments:
 - `trajectory.xtc`
-- `max_frames` (default `100`)
+- `max_frames` (`-1` processes all selected frames; default `100`)
 - `frame_begin` (default `0`, 0-based inclusive)
 - `frame_end` (default `-1`, 0-based exclusive; `-1` means until EOF)
 - `threads` (default `4`)
@@ -181,7 +249,7 @@ Arguments:
 
 Frame window semantics:
 - processed frames satisfy `frame_begin <= frame_idx < frame_end` (if `frame_end != -1`)
-- final processed count is capped by `max_frames`
+- final processed count is capped by `max_frames` when it is positive; `-1` removes this cap
 
 Outputs:
 - `<out_dir>/density_x.csv`

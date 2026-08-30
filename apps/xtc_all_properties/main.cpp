@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
+#include <memory>
 #include <optional>
 #include <regex>
 #include <sstream>
@@ -14,6 +15,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../middle_reservoir/middle_reservoir_monitor.hpp"
 #include "all_props/axial_profile_x_export.hpp"
 #include "all_props/channel_count_xz.hpp"
 #include "all_props/coord_x.hpp"
@@ -395,7 +397,7 @@ void validate_cli_config(const CliConfig& c) {
     if (c.frame_end != -1 && c.frame_end <= c.frame_begin) {
         throw std::runtime_error("Invalid frame_end: must be -1 or > frame_begin");
     }
-    if (c.max_frames <= 0 || c.nthreads <= 0 || c.grid_cell_nm <= 0.0 || c.nsol < 0 || c.nna < 0 ||
+    if (c.max_frames == 0 || c.max_frames < -1 || c.nthreads <= 0 || c.grid_cell_nm <= 0.0 || c.nsol < 0 || c.nna < 0 ||
         c.ncl < 0 || c.nx <= 0 || c.nz < 0 || c.r_cw <= 0.0 || c.r_aw <= 0.0 || c.r_oo <= 0.0 ||
         c.jump_keep_frames <= 0 || c.bound_layer_nm < 0.0) {
         throw std::runtime_error("Invalid non-positive numeric argument.");
@@ -564,6 +566,35 @@ std::string join_out_path(const std::string& dir, const std::string& filename) {
     return p.string();
 }
 
+std::filesystem::path copy_report_notebook(const char* executable,
+                                           const std::string& output_dir) {
+    constexpr const char* notebook_name = "simio_single_run_report.ipynb";
+    std::vector<std::filesystem::path> candidates;
+    if (const char* configured = std::getenv("SIMIO_REPORT_NOTEBOOK")) {
+        candidates.emplace_back(configured);
+    }
+    candidates.emplace_back(std::filesystem::current_path() / "notebooks" / notebook_name);
+    candidates.emplace_back(std::filesystem::absolute(executable).parent_path().parent_path() /
+                            "notebooks" / notebook_name);
+
+    const std::filesystem::path destination =
+        std::filesystem::path(output_dir) / notebook_name;
+    for (const auto& candidate : candidates) {
+        std::error_code error;
+        if (!std::filesystem::is_regular_file(candidate, error)) continue;
+        if (std::filesystem::equivalent(candidate, destination, error) && !error) {
+            return destination;
+        }
+        std::filesystem::copy_file(
+            candidate, destination, std::filesystem::copy_options::overwrite_existing);
+        return destination;
+    }
+
+    throw std::runtime_error(
+        "Report notebook template not found. Run from the repository root or set "
+        "SIMIO_REPORT_NOTEBOOK.");
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -585,6 +616,21 @@ int main(int argc, char** argv) {
         if (!topo.mols.empty()) {
             const simio::MolSpan& last = topo.mols.back();
             expected_natoms = last.first + last.natoms;
+        }
+
+        std::unique_ptr<simio::middle_reservoir::ReactorSetup> middle_setup;
+        std::unique_ptr<simio::middle_reservoir::MiddleReservoirMonitor> middle_monitor;
+        if (!cfg.gro_path.empty()) {
+            middle_setup = std::make_unique<simio::middle_reservoir::ReactorSetup>(
+                simio::middle_reservoir::load_reactor_setup(
+                    cfg.gro_path, cfg.ion_insertion_report));
+            if (middle_setup->natoms != expected_natoms || middle_setup->nwater != cfg.nsol ||
+                middle_setup->nna != cfg.nna || middle_setup->ncl != cfg.ncl) {
+                throw std::runtime_error(
+                    "Middle-reservoir setup disagrees with all-properties topology/counts");
+            }
+            middle_monitor =
+                std::make_unique<simio::middle_reservoir::MiddleReservoirMonitor>(*middle_setup);
         }
 
         XtcTraj traj{};
@@ -696,6 +742,11 @@ int main(int argc, char** argv) {
                   << "\n";
 
         std::filesystem::create_directories(cfg.out_dir);
+        if (middle_setup) {
+            simio::middle_reservoir::write_setup_json(
+                *middle_setup, cfg.gro_path, cfg.ion_insertion_report,
+                join_out_path(cfg.out_dir, "middle_reservoir_setup.json"));
+        }
 
         int frames_done = 0;
         int frame_idx_global = 0;
@@ -712,7 +763,7 @@ int main(int argc, char** argv) {
 
             if (cur_frame_idx < cfg.frame_begin) continue;
             if (cfg.frame_end >= 0 && cur_frame_idx >= cfg.frame_end) break;
-            if (frames_done >= cfg.max_frames) break;
+            if (cfg.max_frames >= 0 && frames_done >= cfg.max_frames) break;
 
             fr.step = xr->step;
             fr.time_ps = xr->time;
@@ -740,6 +791,7 @@ int main(int argc, char** argv) {
             coord.process_frame(topo, fr, ms);
             channel_count.process_frame(topo, fr, ms, cur_frame_idx);
             gating.process_frame(topo, fr, ms, cur_frame_idx);
+            if (middle_monitor) middle_monitor->process_frame(fr, cur_frame_idx);
             jump.process_frame(topo, fr, ms, cur_frame_idx);
 
             ++frames_done;
@@ -762,6 +814,7 @@ int main(int argc, char** argv) {
         const std::string dipole_z_csv = join_out_path(cfg.out_dir, "dipole_z.csv");
         const std::string coord_csv = join_out_path(cfg.out_dir, "coord_x.csv");
         const std::string channel_count_csv = join_out_path(cfg.out_dir, "channel_count_xz.csv");
+        const std::string middle_reservoir_csv = join_out_path(cfg.out_dir, "middle_reservoir.csv");
         const std::string gating_csv = join_out_path(cfg.out_dir, "gating_flux.csv");
         const std::string jump_csv = join_out_path(cfg.out_dir, "jump_msd.csv");
         const std::string jump_channel_x_csv = join_out_path(cfg.out_dir, "msd_x_channel.csv");
@@ -790,6 +843,7 @@ int main(int argc, char** argv) {
         dipole.write_csv(dipole_csv);
         coord.write_csv(coord_csv);
         channel_count.write_csv(channel_count_csv);
+        if (middle_monitor) middle_monitor->write_csv(middle_reservoir_csv);
         gating.write_csv(gating_csv);
         jump.write_csv(jump_csv);
         jump.write_channel_msd_x_csv(jump_channel_x_csv);
@@ -803,6 +857,8 @@ int main(int argc, char** argv) {
         std::array<double, 3> iz_vacf_channel_raw_plateau_nm2_per_ps{0.0, 0.0, 0.0};
         jump.write_vacf_z_channel_raw_csv(vacf_z_channel_raw_csv,
                                           &iz_vacf_channel_raw_plateau_nm2_per_ps);
+        const std::filesystem::path report_notebook =
+            copy_report_notebook(argv[0], cfg.out_dir);
 
         std::cout << "Processed " << frames_done << " frame(s).\n";
         std::cout << "  wrote: " << density_csv << "\n";
@@ -813,6 +869,10 @@ int main(int argc, char** argv) {
         std::cout << "  wrote: " << dipole_z_csv << "\n";
         std::cout << "  wrote: " << coord_csv << "\n";
         std::cout << "  wrote: " << channel_count_csv << "\n";
+        if (middle_monitor) {
+            std::cout << "  wrote: " << middle_reservoir_csv << "\n";
+            std::cout << "  wrote: " << join_out_path(cfg.out_dir, "middle_reservoir_setup.json") << "\n";
+        }
         std::cout << "  wrote: " << gating_csv << "\n";
         std::cout << "  wrote: " << jump_csv << "\n";
         std::cout << "  wrote: " << jump_channel_x_csv << "\n";
@@ -822,6 +882,7 @@ int main(int argc, char** argv) {
         std::cout << "  wrote: " << vacf_y_csv << "\n";
         std::cout << "  wrote: " << vacf_x_channel_csv << "\n";
         std::cout << "  wrote: " << vacf_z_channel_raw_csv << "\n";
+        std::cout << "  wrote: " << report_notebook.string() << "\n";
         std::cout << "[vacf_y plateau D_y_from_vacf last10 (nm^2/ps)] water="
                   << dy_vacf_plateau_nm2_per_ps[0] << " na=" << dy_vacf_plateau_nm2_per_ps[1]
                   << " cl=" << dy_vacf_plateau_nm2_per_ps[2] << "\n";
