@@ -106,7 +106,8 @@ fails before reading the trajectory if report counts, GRO counts, or geometry di
 Outputs:
 
 - `<out_dir>/middle_reservoir.csv`: per-frame water/Na/Cl counts for the left,
-  middle, and right reservoirs plus a separate channel inventory, together with entered,
+  middle, and right reservoirs plus separate left/right channel inventories and their
+  combined compatibility columns, together with entered,
   exited, and cumulative net-in counts at both gates. Legacy unprefixed count columns
   remain aliases for the middle reservoir.
 - `<out_dir>/middle_reservoir_setup.json`: the inferred reservoir/channel x intervals,

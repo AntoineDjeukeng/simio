@@ -45,7 +45,9 @@ size_t region_index(double x_nm, const ReactorSetup& setup) {
     if (setup.left_reservoir.contains(x_nm)) return 0;
     if (setup.middle_reservoir.contains(x_nm)) return 1;
     if (setup.right_reservoir.contains(x_nm)) return 2;
-    return 3; // One of the two channels.
+    if (setup.left_channel.contains(x_nm)) return 3;
+    if (setup.right_channel.contains(x_nm)) return 4;
+    throw std::runtime_error("Wrapped molecule x coordinate is outside all reactor regions");
 }
 
 bool in_z_aperture(double z, const GateGeometry& gate, const simio::Pbc3D& pbc) {
@@ -161,10 +163,17 @@ void MiddleReservoirMonitor::write_csv(const std::string& path) const {
     // Keep water_count/na_count/cl_count as middle-reservoir compatibility aliases.
     output << "frame_idx,step,time_ps,water_count,na_count,cl_count";
     constexpr const char* species_names[] = {"water", "na", "cl"};
-    constexpr const char* region_names[] = {"left", "middle", "right", "channel"};
+    constexpr const char* region_names[] = {"left", "middle", "right"};
     for (const char* region : region_names) {
         for (const char* species : species_names) {
             output << "," << region << "_" << species << "_count";
+        }
+    }
+    // Preserve the original combined channel columns for downstream compatibility.
+    for (const char* species : species_names) output << ",channel_" << species << "_count";
+    for (const char* channel : {"left_channel", "right_channel"}) {
+        for (const char* species : species_names) {
+            output << "," << channel << "_" << species << "_count";
         }
     }
     for (const char* side : {"left", "right"}) {
@@ -181,8 +190,14 @@ void MiddleReservoirMonitor::write_csv(const std::string& path) const {
         const auto& middle = row.region_count[1];
         output << row.frame_index << "," << row.step << "," << row.time_ps << "," << middle[0]
                << "," << middle[1] << "," << middle[2];
-        for (const auto& region : row.region_count) {
-            for (const int64_t count : region) output << "," << count;
+        for (size_t region = 0; region < 3; ++region) {
+            for (const int64_t count : row.region_count[region]) output << "," << count;
+        }
+        for (size_t species = 0; species < 3; ++species) {
+            output << "," << row.region_count[3][species] + row.region_count[4][species];
+        }
+        for (size_t region = 3; region < 5; ++region) {
+            for (const int64_t count : row.region_count[region]) output << "," << count;
         }
         for (size_t species = 0; species < 3; ++species) {
             output << ',' << row.left.entered[species] << ',' << row.left.exited[species] << ','
