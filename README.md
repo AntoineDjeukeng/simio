@@ -183,8 +183,9 @@ notebook template directly into its output directory:
 
 Open that notebook and run its cells from the run directory to inspect the generated
 CSVs. It derives all paths from `Path.cwd()` and does not require repo-relative data
-paths. The reservoir section compares left/middle/right Na and Cl populations and
-molar concentrations; ions currently inside either channel are shown separately. Set `SIMIO_REPORT_NOTEBOOK=/path/to/template.ipynb` only when running an
+paths. The reservoir section merges the periodically connected left and right slabs into one
+outer reservoir and compares its Na/Cl populations and concentrations with the middle
+reservoir; ions currently inside either channel are shown separately. Set `SIMIO_REPORT_NOTEBOOK=/path/to/template.ipynb` only when running an
 installed binary away from the repository.
 
 To execute the notebook non-interactively and additionally produce figures, tables,
