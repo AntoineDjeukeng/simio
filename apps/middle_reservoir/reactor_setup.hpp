@@ -14,6 +14,14 @@ struct GateGeometry {
     std::string wall_type;
 };
 
+struct XInterval {
+    double min_nm = 0.0;
+    double max_nm = 0.0;
+
+    double length_nm() const { return max_nm - min_nm; }
+    bool contains(double x_nm) const { return x_nm >= min_nm && x_nm < max_nm; }
+};
+
 struct ReservoirReport {
     int total_waters = 0;
     int eligible_waters = 0;
@@ -62,9 +70,14 @@ struct ReactorSetup {
     std::array<double, 3> gro_box_nm{0.0, 0.0, 0.0};
     GateGeometry left_gate;
     GateGeometry right_gate;
+    XInterval left_reservoir;
+    XInterval middle_reservoir;
+    XInterval right_reservoir;
+    XInterval left_channel;
+    XInterval right_channel;
     IonInsertionReportSummary report;
 
-    double middle_length_nm() const { return right_gate.x_nm - left_gate.x_nm; }
+    double middle_length_nm() const { return middle_reservoir.length_nm(); }
 };
 
 // The insertion report is authoritative for composition and preparation counts.

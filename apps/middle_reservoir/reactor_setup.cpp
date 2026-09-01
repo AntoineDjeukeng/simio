@@ -392,8 +392,15 @@ ReactorSetup load_reactor_setup(const std::string& gro_path,
     const std::vector<WallComponent> walls = find_wall_components(atoms);
     setup.left_gate = gate_from_component(walls[0], walls[0].xmax);
     setup.right_gate = gate_from_component(walls[1], walls[1].xmin);
-    if (setup.right_gate.x_nm <= setup.left_gate.x_nm) {
-        throw std::runtime_error("Derived middle-reservoir interval is empty");
+    setup.left_reservoir = XInterval{0.0, walls[0].xmin};
+    setup.left_channel = XInterval{walls[0].xmin, walls[0].xmax};
+    setup.middle_reservoir = XInterval{walls[0].xmax, walls[1].xmin};
+    setup.right_channel = XInterval{walls[1].xmin, walls[1].xmax};
+    setup.right_reservoir = XInterval{walls[1].xmax, setup.gro_box_nm[0]};
+    if (setup.left_reservoir.length_nm() <= 0.0 ||
+        setup.middle_reservoir.length_nm() <= 0.0 ||
+        setup.right_reservoir.length_nm() <= 0.0) {
+        throw std::runtime_error("Derived reservoir interval is empty");
     }
     return setup;
 }

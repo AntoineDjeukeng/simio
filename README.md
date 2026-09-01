@@ -105,10 +105,13 @@ fails before reading the trajectory if report counts, GRO counts, or geometry di
 
 Outputs:
 
-- `<out_dir>/middle_reservoir.csv`: per-frame water/Na/Cl occupancy plus entered,
-  exited, and cumulative net-in counts at both gates.
-- `<out_dir>/middle_reservoir_setup.json`: the inferred gate positions, z apertures,
-  wall types, absolute and reservoir-relative coordinates, box, and parsed report summary.
+- `<out_dir>/middle_reservoir.csv`: per-frame water/Na/Cl counts for the left,
+  middle, and right reservoirs plus a separate channel inventory, together with entered,
+  exited, and cumulative net-in counts at both gates. Legacy unprefixed count columns
+  remain aliases for the middle reservoir.
+- `<out_dir>/middle_reservoir_setup.json`: the inferred reservoir/channel x intervals,
+  gate positions, z apertures, wall types, absolute and reservoir-relative coordinates,
+  box, and parsed report summary.
 
 
 The middle-reservoir monitor can also run inside the all-properties driver. Add
@@ -180,7 +183,8 @@ notebook template directly into its output directory:
 
 Open that notebook and run its cells from the run directory to inspect the generated
 CSVs. It derives all paths from `Path.cwd()` and does not require repo-relative data
-paths. Set `SIMIO_REPORT_NOTEBOOK=/path/to/template.ipynb` only when running an
+paths. The reservoir section compares left/middle/right Na and Cl populations and
+molar concentrations; ions currently inside either channel are shown separately. Set `SIMIO_REPORT_NOTEBOOK=/path/to/template.ipynb` only when running an
 installed binary away from the repository.
 
 To execute the notebook non-interactively and additionally produce figures, tables,

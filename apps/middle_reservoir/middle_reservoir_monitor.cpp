@@ -41,6 +41,13 @@ int species_index(simio::MolType type) {
     return -1;
 }
 
+size_t region_index(double x_nm, const ReactorSetup& setup) {
+    if (setup.left_reservoir.contains(x_nm)) return 0;
+    if (setup.middle_reservoir.contains(x_nm)) return 1;
+    if (setup.right_reservoir.contains(x_nm)) return 2;
+    return 3; // One of the two channels.
+}
+
 bool in_z_aperture(double z, const GateGeometry& gate, const simio::Pbc3D& pbc) {
     const double zw = pbc.wrap_pos(2, z);
     const double zmin = pbc.wrap_pos(2, gate.zmin_nm);
@@ -96,9 +103,8 @@ void MiddleReservoirMonitor::process_frame(const simio::Frame& frame, int frame_
 
         simio::Vec3d current = molecule_key(frame, molecule);
         frame.pbc.wrap_pos3(current);
-        if (current.v[0] >= setup_.left_gate.x_nm && current.v[0] < setup_.right_gate.x_nm) {
-            ++row.count[static_cast<size_t>(species)];
-        }
+        const size_t region = region_index(current.v[0], setup_);
+        ++row.region_count[region][static_cast<size_t>(species)];
 
         if (has_previous_[molecule_id]) {
             const simio::Vec3d delta = frame.pbc.min_image(current - previous_key_[molecule_id]);
@@ -152,8 +158,15 @@ void MiddleReservoirMonitor::write_csv(const std::string& path) const {
     std::ofstream output(path);
     if (!output) throw std::runtime_error("Failed to open output CSV: " + path);
 
+    // Keep water_count/na_count/cl_count as middle-reservoir compatibility aliases.
     output << "frame_idx,step,time_ps,water_count,na_count,cl_count";
     constexpr const char* species_names[] = {"water", "na", "cl"};
+    constexpr const char* region_names[] = {"left", "middle", "right", "channel"};
+    for (const char* region : region_names) {
+        for (const char* species : species_names) {
+            output << "," << region << "_" << species << "_count";
+        }
+    }
     for (const char* side : {"left", "right"}) {
         for (const char* species : species_names) {
             output << ',' << side << '_' << species << "_in"
@@ -165,8 +178,12 @@ void MiddleReservoirMonitor::write_csv(const std::string& path) const {
 
     output << std::setprecision(12);
     for (const FrameRow& row : rows_) {
-        output << row.frame_index << ',' << row.step << ',' << row.time_ps << ',' << row.count[0]
-               << ',' << row.count[1] << ',' << row.count[2];
+        const auto& middle = row.region_count[1];
+        output << row.frame_index << "," << row.step << "," << row.time_ps << "," << middle[0]
+               << "," << middle[1] << "," << middle[2];
+        for (const auto& region : row.region_count) {
+            for (const int64_t count : region) output << "," << count;
+        }
         for (size_t species = 0; species < 3; ++species) {
             output << ',' << row.left.entered[species] << ',' << row.left.exited[species] << ','
                    << row.left_cumulative_net[species];
@@ -235,6 +252,18 @@ void write_setup_json(const ReactorSetup& setup,
            << "    \"expected_final\": {\"water\": " << report.expected_water
            << ", \"na\": " << report.expected_na << ", \"cl\": " << report.expected_cl
            << ", \"total_charge_e\": " << report.expected_total_charge_e << "}\n"
+           << "  },\n"
+           << "  \"regions\": {\n"
+           << "    \"left_reservoir_x_nm\": [" << setup.left_reservoir.min_nm << ", "
+           << setup.left_reservoir.max_nm << "],\n"
+           << "    \"middle_reservoir_x_nm\": [" << setup.middle_reservoir.min_nm << ", "
+           << setup.middle_reservoir.max_nm << "],\n"
+           << "    \"right_reservoir_x_nm\": [" << setup.right_reservoir.min_nm << ", "
+           << setup.right_reservoir.max_nm << "],\n"
+           << "    \"left_channel_x_nm\": [" << setup.left_channel.min_nm << ", "
+           << setup.left_channel.max_nm << "],\n"
+           << "    \"right_channel_x_nm\": [" << setup.right_channel.min_nm << ", "
+           << setup.right_channel.max_nm << "]\n"
            << "  },\n"
            << "  \"middle_reservoir\": {\n"
            << "    \"origin_x_absolute_nm\": " << setup.left_gate.x_nm << ",\n"

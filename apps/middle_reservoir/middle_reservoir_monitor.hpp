@@ -26,7 +26,8 @@ class MiddleReservoirMonitor {
         int frame_index = 0;
         int64_t step = 0;
         double time_ps = 0.0;
-        std::array<int64_t, 3> count{0, 0, 0};
+        // Regions: left reservoir, middle reservoir, right reservoir, channels.
+        std::array<std::array<int64_t, 3>, 4> region_count{};
         GateTally left;
         GateTally right;
         std::array<int64_t, 3> left_cumulative_net{0, 0, 0};
