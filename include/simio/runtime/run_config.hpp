@@ -44,6 +44,7 @@ struct RunConfig {
   // analysis options
   std::string gating_selection{"all"};
   std::string out_dir{"."};
+  std::string output_root{"runs"}; // Used by the two-input reactor CLI.
   int jump_keep_frames{50};
   double bound_layer_nm{0.30};
 
@@ -70,7 +71,11 @@ struct RunConfig {
   static RunConfig load(int argc, char** argv);             // auto CLI vs JSON
   static RunConfig from_cli(int argc, char** argv);         // positional CLI
   static RunConfig from_json_file(const std::string& path); // config.json
+  static RunConfig from_reactor_inputs(const std::string& xtc_path,
+                                       const std::string& report_path,
+                                       const std::string& defaults_path = {});
   void validate_or_die() const;
+  void write_json(const std::string& path) const;
 
   // utilities
   static bool looks_like_json_path(const std::string& s);

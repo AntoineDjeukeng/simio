@@ -1,0 +1,16 @@
+{
+  "max_frames": -1,
+  "frame_begin": 0,
+  "frame_end": -1,
+  "threads": 8,
+  "grid_cell_nm": 0.5,
+  "nx": 200,
+  "nz": 100,
+  "r_cw": 0.35,
+  "r_aw": 0.38,
+  "r_oo": 0.35,
+  "r_nacl": 0.59,
+  "bound_layer_nm": 0.3,
+  "jump_keep_frames": 50,
+  "output_root": "runs"
+}

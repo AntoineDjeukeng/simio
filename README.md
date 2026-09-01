@@ -133,6 +133,41 @@ hydrogen-bond observables), `middle_reservoir.csv`, and the remaining property f
 ```bash
 ./bin/simio_xtc_all_properties config.json
 ```
+### Batch-friendly reactor runs
+
+A per-system config file is not required when the XTC and GRO share a basename. Pass
+the trajectory and its insertion report directly, optionally followed by one reusable
+defaults file:
+
+```bash
+./bin/simio_xtc_all_properties \
+  data/reactor_h7l6_neu_h9l1_neg_01.xtc \
+  data/ion_insertion_report.json \
+  config/simio_defaults.json
+```
+
+This mode automatically:
+
+- derives `data/reactor_h7l6_neu_h9l1_neg_01.gro` from the XTC path;
+- reads molecule counts from the insertion report and validates them against the GRO;
+- derives `xmin/xmax` from the two middle-reservoir gates;
+- derives `zmin/zmax` from the union of both gate apertures;
+- writes outputs to `runs/reactor_h7l6_neu_h9l1_neg_01/` by default;
+- records every resolved value in `<out_dir>/simio_run_config.json`;
+- copies the report notebook into the output directory.
+
+The shared defaults file contains only reusable execution/binning/cutoff settings.
+Change `output_root` there to place all inferred run directories elsewhere. Without a
+defaults argument, built-in defaults process all frames with 8 threads, `nx=200`, and
+`nz=100`:
+
+```bash
+./bin/simio_xtc_all_properties trajectory.xtc ion_insertion_report.json
+```
+
+System-specific counts and gate bounds in a defaults file are ignored in reactor mode;
+the validated report/GRO values are authoritative.
+
 ### Single-run notebook report
 
 Every successful `simio_xtc_all_properties` run copies the current parameterized

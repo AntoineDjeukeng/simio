@@ -416,7 +416,12 @@ void print_usage(const char* prog) {
         << " [frame_begin=0] [frame_end=-1]\n"
         << "   or: " << prog << " --config <config.json>\n"
         << "   or: " << prog << " <config.json>\n"
-        << "JSON extras: topology_json, use_channel_bounds_from_topology, water_names, na_names, cl_names, bound_layer_nm, frame_begin, frame_end\n";
+        << "   or: " << prog
+        << " <trajectory.xtc> <ion_insertion_report.json> [defaults.json]\n"
+        << "Reactor mode infers <trajectory>.gro, system counts/bounds, and "
+           "<output_root>/<trajectory_stem>.\n"
+        << "JSON extras: topology_json, use_channel_bounds_from_topology, water_names, "
+           "na_names, cl_names, bound_layer_nm, frame_begin, frame_end, output_root\n";
 }
 
 CliConfig parse_positional_cli(int argc, char** argv) {
@@ -608,27 +613,39 @@ int main(int argc, char** argv) {
             return 1;
         }
 
-        const simio::runtime::RunConfig cfg = simio::runtime::RunConfig::load(argc, argv);
+        simio::runtime::RunConfig cfg = simio::runtime::RunConfig::load(argc, argv);
+        std::unique_ptr<simio::middle_reservoir::ReactorSetup> middle_setup;
+        if (!cfg.gro_path.empty()) {
+            middle_setup = std::make_unique<simio::middle_reservoir::ReactorSetup>(
+                simio::middle_reservoir::load_reactor_setup(
+                    cfg.gro_path, cfg.ion_insertion_report));
+            cfg.nsol = middle_setup->nwater;
+            cfg.nna = middle_setup->nna;
+            cfg.ncl = middle_setup->ncl;
+            cfg.xmin = middle_setup->left_gate.x_nm;
+            cfg.xmax = middle_setup->right_gate.x_nm;
+            cfg.zmin = std::min(middle_setup->left_gate.zmin_nm,
+                                middle_setup->right_gate.zmin_nm);
+            cfg.zmax = std::max(middle_setup->left_gate.zmax_nm,
+                                middle_setup->right_gate.zmax_nm);
+            cfg.mol_blocks.clear();
+            cfg.has_mol_blocks = false;
+        }
         cfg.validate_or_die();
-        simio::Topology topo = build_topology(cfg);
+
+        simio::Topology topo = middle_setup ? middle_setup->topology : build_topology(cfg);
         const int expected_nmols = static_cast<int>(topo.mols.size());
         int expected_natoms = 0;
         if (!topo.mols.empty()) {
             const simio::MolSpan& last = topo.mols.back();
             expected_natoms = last.first + last.natoms;
         }
+        if (middle_setup && middle_setup->natoms != expected_natoms) {
+            throw std::runtime_error("Middle-reservoir topology atom count is inconsistent");
+        }
 
-        std::unique_ptr<simio::middle_reservoir::ReactorSetup> middle_setup;
         std::unique_ptr<simio::middle_reservoir::MiddleReservoirMonitor> middle_monitor;
-        if (!cfg.gro_path.empty()) {
-            middle_setup = std::make_unique<simio::middle_reservoir::ReactorSetup>(
-                simio::middle_reservoir::load_reactor_setup(
-                    cfg.gro_path, cfg.ion_insertion_report));
-            if (middle_setup->natoms != expected_natoms || middle_setup->nwater != cfg.nsol ||
-                middle_setup->nna != cfg.nna || middle_setup->ncl != cfg.ncl) {
-                throw std::runtime_error(
-                    "Middle-reservoir setup disagrees with all-properties topology/counts");
-            }
+        if (middle_setup) {
             middle_monitor =
                 std::make_unique<simio::middle_reservoir::MiddleReservoirMonitor>(*middle_setup);
         }
@@ -742,6 +759,9 @@ int main(int argc, char** argv) {
                   << "\n";
 
         std::filesystem::create_directories(cfg.out_dir);
+        const std::string resolved_config_path =
+            join_out_path(cfg.out_dir, "simio_run_config.json");
+        cfg.write_json(resolved_config_path);
         if (middle_setup) {
             simio::middle_reservoir::write_setup_json(
                 *middle_setup, cfg.gro_path, cfg.ion_insertion_report,
@@ -861,6 +881,7 @@ int main(int argc, char** argv) {
             copy_report_notebook(argv[0], cfg.out_dir);
 
         std::cout << "Processed " << frames_done << " frame(s).\n";
+        std::cout << "  wrote: " << resolved_config_path << "\n";
         std::cout << "  wrote: " << density_csv << "\n";
         std::cout << "  wrote: " << water_atom_density_csv << "\n";
         std::cout << "  wrote: " << axial_profile_csv << "\n";

@@ -2,7 +2,9 @@
 
 #include <array>
 #include <cctype>
+#include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <initializer_list>
 #include <optional>
 #include <regex>
@@ -67,6 +69,16 @@ std::string read_text_file(const std::string& path) {
   std::ostringstream oss;
   oss << ifs.rdbuf();
   return oss.str();
+}
+
+std::string json_escape(std::string value) {
+  std::string out;
+  out.reserve(value.size());
+  for (const char c : value) {
+    if (c == '\\' || c == '"') out.push_back('\\');
+    out.push_back(c);
+  }
+  return out;
 }
 
 std::optional<std::string> json_find_string(const std::string& text, const std::string& key) {
@@ -335,6 +347,14 @@ RunConfig RunConfig::load(int argc, char** argv) {
   if (argc == 2 && looks_like_json_path(arg1)) {
     return from_json_file(arg1);
   }
+  if ((argc == 3 || argc == 4) && has_suffix(arg1, ".xtc") &&
+      looks_like_json_path(argv[2])) {
+    const std::string defaults = argc == 4 ? argv[3] : std::string{};
+    if (!defaults.empty() && !looks_like_json_path(defaults)) {
+      throw std::runtime_error("Reactor defaults must be a JSON file: " + defaults);
+    }
+    return from_reactor_inputs(arg1, argv[2], defaults);
+  }
 
   return from_cli(argc, argv);
 }
@@ -395,6 +415,7 @@ RunConfig RunConfig::from_json_file(const std::string& json_path) {
   const auto rnacl_v = json_find_number_any(text, {"r_nacl", "r_nacl_cluster", "nacl_cutoff_nm"});
   const auto gating_s_v = json_find_string_any(text, {"gating_sel", "gating_selection"});
   const auto out_dir_v = json_find_string_any(text, {"out_dir", "out_prefix"});
+  const auto output_root_v = json_find_string_any(text, {"output_root"});
   const auto jump_keep_v = json_find_number_any(text, {"jump_keep_frames"});
   const auto bound_layer_v = json_find_number_any(text, {"bound_layer_nm", "bound_delta_nm", "adsorption_delta_nm"});
 
@@ -446,6 +467,7 @@ RunConfig RunConfig::from_json_file(const std::string& json_path) {
   if (rnacl_v) c.r_nacl = parse_double_text(*rnacl_v, "r_nacl");
   if (gating_s_v) c.gating_selection = *gating_s_v;
   if (out_dir_v) c.out_dir = *out_dir_v;
+  if (output_root_v) c.output_root = *output_root_v;
   if (jump_keep_v) c.jump_keep_frames = parse_int_text(*jump_keep_v, "jump_keep_frames");
   if (bound_layer_v) c.bound_layer_nm = parse_double_text(*bound_layer_v, "bound_layer_nm");
 
@@ -458,6 +480,73 @@ RunConfig RunConfig::from_json_file(const std::string& json_path) {
 
   apply_topology_counts_from_mini_json(c);
   return c;
+}
+
+RunConfig RunConfig::from_reactor_inputs(const std::string& trajectory_path,
+                                         const std::string& report_path,
+                                         const std::string& defaults_path) {
+  RunConfig c = defaults_path.empty() ? RunConfig{} : from_json_file(defaults_path);
+  if (defaults_path.empty()) {
+    c.max_frames = -1;
+    c.nthreads = 8;
+    c.nx = 200;
+    c.nz = 100;
+  }
+
+  const std::filesystem::path xtc(trajectory_path);
+  if (xtc.extension() != ".xtc") {
+    throw std::runtime_error("Reactor trajectory must have .xtc extension: " + trajectory_path);
+  }
+  std::filesystem::path gro = xtc;
+  gro.replace_extension(".gro");
+  if (xtc.stem().empty()) {
+    throw std::runtime_error("Cannot infer output directory from trajectory: " + trajectory_path);
+  }
+
+  c.xtc_path = xtc.string();
+  c.gro_path = gro.string();
+  c.ion_insertion_report = report_path;
+  c.out_dir = (std::filesystem::path(c.output_root) / xtc.stem()).string();
+
+  // The paired GRO/report is authoritative; never retain topology from a shared defaults file.
+  c.topology_json.clear();
+  c.use_channel_bounds_from_topology = false;
+  c.mol_blocks.clear();
+  c.has_mol_blocks = false;
+  return c;
+}
+
+void RunConfig::write_json(const std::string& path) const {
+  std::ofstream out(path);
+  if (!out) throw std::runtime_error("Failed to write resolved config: " + path);
+  out << std::setprecision(12)
+      << "{\n"
+      << "  \"xtc_path\": \"" << json_escape(xtc_path) << "\",\n"
+      << "  \"gro_path\": \"" << json_escape(gro_path) << "\",\n"
+      << "  \"ion_insertion_report\": \"" << json_escape(ion_insertion_report) << "\",\n"
+      << "  \"max_frames\": " << max_frames << ",\n"
+      << "  \"frame_begin\": " << frame_begin << ",\n"
+      << "  \"frame_end\": " << frame_end << ",\n"
+      << "  \"threads\": " << nthreads << ",\n"
+      << "  \"grid_cell_nm\": " << grid_cell_nm << ",\n"
+      << "  \"nsol\": " << nsol << ",\n"
+      << "  \"nna\": " << nna << ",\n"
+      << "  \"ncl\": " << ncl << ",\n"
+      << "  \"xmin\": " << xmin << ",\n"
+      << "  \"xmax\": " << xmax << ",\n"
+      << "  \"zmin\": " << zmin << ",\n"
+      << "  \"zmax\": " << zmax << ",\n"
+      << "  \"nx\": " << nx << ",\n"
+      << "  \"nz\": " << nz << ",\n"
+      << "  \"r_cw\": " << r_cw << ",\n"
+      << "  \"r_aw\": " << r_aw << ",\n"
+      << "  \"r_oo\": " << r_oo << ",\n"
+      << "  \"r_nacl\": " << r_nacl << ",\n"
+      << "  \"gating_selection\": \"" << json_escape(gating_selection) << "\",\n"
+      << "  \"jump_keep_frames\": " << jump_keep_frames << ",\n"
+      << "  \"bound_layer_nm\": " << bound_layer_nm << ",\n"
+      << "  \"out_dir\": \"" << json_escape(out_dir) << "\"\n"
+      << "}\n";
 }
 
 void RunConfig::validate_or_die() const {
